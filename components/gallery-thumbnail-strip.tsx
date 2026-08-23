@@ -139,6 +139,51 @@ const FIELD_SPRING = { type: "spring", duration: 0.22, bounce: 0 } as const
  */
 const falloff = (distance: number) => (distance >= 1 ? 0 : (1 + Math.cos(Math.PI * distance)) / 2)
 
+/**
+ * How far each end of the rail fades out, so a long stack dissolves at the edges
+ * instead of being sliced off by the scroller.
+ *
+ * 32 sits inside two separate clearances, and needs to stay inside both. The
+ * column's `py-16` parks the outermost frame 64px clear of the rail's edge at
+ * either end of the travel, so at rest the fade is spent entirely on blank
+ * padding and the newest and oldest captures keep full strength — no scroll
+ * listener needed to gate it. The field then pulls that frame up to 24.1px of
+ * that clearance on hover (see the column's note), leaving 39.9px, which 32 is
+ * still under. Go past 40 and pointing at the rail starts washing out the top of
+ * the stack; go past 64 and it is washed out even standing still.
+ */
+const RAIL_FADE_PX = 32
+
+/**
+ * The ramp — a raised cosine, not a straight line.
+ *
+ * Same curve and the same reason as `falloff` above: value *and* slope both
+ * reach zero at the transparent end, so a thumbnail entering the fade starts
+ * dimming from a standstill rather than stepping onto a slope, and the opaque end
+ * meets full strength without a crease. A linear alpha ramp corners at both.
+ * Spelled out as stops because a CSS gradient only interpolates linearly between
+ * the ones it is given; these are (1 − cos πt)/2 sampled at the quarters.
+ *
+ * A mask rather than a scrim painted in `--background`, which is the choice
+ * controls-panel made and documented. That panel had a colour picker opening out
+ * of its box and a mask would have clipped it; this rail already clips on both
+ * axes, so a mask takes nothing away — and it costs no extra node, no second copy
+ * of the background colour, and stays right in either appearance.
+ */
+const RAIL_FADE_MASK = [
+  "linear-gradient(to bottom,",
+  "rgba(0,0,0,0) 0px,",
+  `rgba(0,0,0,0.15) ${RAIL_FADE_PX * 0.25}px,`,
+  `rgba(0,0,0,0.5) ${RAIL_FADE_PX * 0.5}px,`,
+  `rgba(0,0,0,0.85) ${RAIL_FADE_PX * 0.75}px,`,
+  `rgba(0,0,0,1) ${RAIL_FADE_PX}px,`,
+  `rgba(0,0,0,1) calc(100% - ${RAIL_FADE_PX}px),`,
+  `rgba(0,0,0,0.85) calc(100% - ${RAIL_FADE_PX * 0.75}px),`,
+  `rgba(0,0,0,0.5) calc(100% - ${RAIL_FADE_PX * 0.5}px),`,
+  `rgba(0,0,0,0.15) calc(100% - ${RAIL_FADE_PX * 0.25}px),`,
+  "rgba(0,0,0,0) 100%)",
+].join(" ")
+
 interface FrameValues {
   transform: MotionValue<string>
 }
@@ -717,6 +762,17 @@ export function GalleryThumbnailStrip({
           // should: clearing the indicator outranks centring against it.
           : "w-full overflow-x-auto overflow-y-hidden px-3 pb-[max(0.875rem,env(safe-area-inset-bottom))] pt-3.5",
       )}
+      // On the scroller, not on the column inside it: a mask paints against the
+      // element's own border box, so here it stays pinned to the rail's two edges
+      // while the frames travel underneath. Hung on the column it would scroll
+      // away with the content and fade the ends of the stack, not of the view.
+      //
+      // Vertical only. The horizontal strip has 4px of side padding against this
+      // rail's 64, so a fade there has nowhere to be spent and would dim the first
+      // and last capture while the strip sits at rest.
+      style={
+        isVertical ? { WebkitMaskImage: RAIL_FADE_MASK, maskImage: RAIL_FADE_MASK } : undefined
+      }
       onClick={(event) => event.stopPropagation()}
       onPointerMove={isVertical && !prefersReducedMotion ? handlePointerMove : undefined}
       onPointerLeave={isVertical && !prefersReducedMotion ? releaseField : undefined}
