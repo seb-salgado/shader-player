@@ -1,6 +1,6 @@
 export const SIDEBAR_MIN_WIDTH = 275;
 export const SIDEBAR_MAX_WIDTH = 400;
-export const DEFAULT_SIDEBAR_WIDTH = 280;
+export const DEFAULT_SIDEBAR_WIDTH = 315;
 export const SIDEBAR_WIDTH_STORAGE_KEY = "shader-player:sidebar-width";
 
 export function clampSidebarWidth(width: number): number {

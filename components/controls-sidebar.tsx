@@ -31,7 +31,13 @@ export function ControlsSidebar({
     // scroll lives on the inner column, not here — `overflow-y-auto` computes
     // `overflow-x` to `auto` too, which would clip the half of the grip that
     // hangs outside this box.
-    <div className="relative w-[var(--sidebar-width,280px)] shrink-0 h-full bg-background flex flex-col">
+    //
+    // The 315px fallback is not decoration: --sidebar-width is only set once
+    // something has been stored, so on a first visit this *is* the width. Keep
+    // it in step with DEFAULT_SIDEBAR_WIDTH in lib/sidebar-width.ts by hand —
+    // Tailwind cannot read a constant, the same constraint the mobile panel's
+    // detent classes document.
+    <div className="relative w-[var(--sidebar-width,315px)] shrink-0 h-full bg-background flex flex-col">
       {/* Resize grip. A 6px strip gives the pointer something to catch; the 1px
           line inside is the visible part. With no border here any more, that
           line is the only seam this edge ever draws — transparent at rest, so
