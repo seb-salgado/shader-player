@@ -26,15 +26,21 @@ export function CreditsFooter({ showAppearanceToggle = false }: CreditsFooterPro
           button sitting 4px above the text it reads as being beside. Centring
           lines up what is actually visible. */}
       <div className="flex items-center justify-between gap-2">
-        <p className="min-w-0 text-sm text-foreground mt-0 py-2.5">
+        {/* The parameter groups' heading style, and the same one: `text-sm
+            uppercase tracking-wider text-muted-foreground`, straight off
+            ParameterGroup's CollapsibleTrigger. This line is a label on the
+            panel, not content in it — the same thing every SECTION TITLE above
+            it is — so it belongs in that voice rather than in the foreground
+            colour it used to borrow from the parameter rows. */}
+        <p className="min-w-0 text-sm uppercase tracking-wider text-muted-foreground mt-0 py-2.5">
           Made by{" "}
           <a
-            href="https://www.sebastiaosommer.com/"
+            href="https://sebsalgado.com"
             target="_blank"
             rel="noopener noreferrer"
             className="underline decoration-dotted underline-offset-2 hover:opacity-80 transition-opacity"
           >
-            Sebastião Sommer
+            Sebastião Salgado
           </a>
         </p>
         {showAppearanceToggle && <AppearanceToggle />}
