@@ -263,6 +263,55 @@ export const controlsSplit = {
   openFraction: 0.5,
 
   /**
+   * Where the panel's top edge sits at the *lifted* detent — and the one number
+   * above that is not the canvas's business.
+   *
+   * The split is where the panel rests and what the canvas is measured against;
+   * `openFraction` remains that measurement's only input. This is a second
+   * position the panel can be *asked* for, by grabbing it, and the canvas does
+   * not answer: it has already stepped back, and a viewfinder that shrank again
+   * every time the workbench grew would be two elements moving on one axis for
+   * one gesture.
+   *
+   * Pixels, not a fraction, and it is the only measurement here that is. Every
+   * other number in this token is a share of the viewport because it divides the
+   * screen between two things that both need room in proportion. This one
+   * divides nothing: it is the margin left above a panel that has taken the
+   * screen, and a margin is a constant on a small phone and a large one alike. A
+   * fraction would have made it 78px on an SE and 111px on a Pro Max, which is
+   * not a tighter or looser version of the same design — it is the strip growing
+   * into a second thing on screen.
+   *
+   * Thirty-two, not zero. What is left is a sliver of live artwork rather than a
+   * viewfinder, and that is the point: it says the canvas is still there and
+   * still running, and it keeps the tap-outside-to-dismiss target that the whole
+   * composition rests on. It is under the 44px a primary target would need, but
+   * this is not one — the X and Escape both close from here too.
+   */
+  tallTopPx: 32,
+
+  /**
+   * The settle after the finger lets go.
+   *
+   * Its own tier rather than spring.moderate, and the reason is the handoff:
+   * this animation starts with whatever velocity the flick had. 0.16s cannot
+   * absorb that — a fast release lands past the detent it was aiming at and has
+   * to come back, which is the one thing a detent must never do. 0.32s takes the
+   * velocity as an initial condition and still arrives inside a third of a
+   * second.
+   *
+   * A hair of bounce, unlike the tiers above, because this ends against nothing:
+   * both detents have room on the far side (the panel runs off screen below, and
+   * the canvas is above), so a few pixels of overshoot is weight rather than an
+   * element hitting a wall it cannot pass.
+   */
+  detentSpring: {
+    type: "spring" as const,
+    duration: 0.32,
+    bounce: 0.05,
+  },
+
+  /**
    * Air between the viewfinder's bottom edge and the panel's top edge.
    *
    * Taken out of the canvas, not out of the panel: the panel's height is what
