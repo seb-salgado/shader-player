@@ -345,17 +345,25 @@ export function ControlsPanel({
                     and in a panel half a screen tall, a second row of fixed chrome
                     is 48px that the parameters need more.
 
-                    `w-fit` because the track is a recess the cells sit in, not a
-                    bar the panel is divided by. Left to stretch it spans the full
-                    width — a flex container is block-level — and the run of empty
-                    track past the last cell reads as a fourth slot that never
-                    fills. */}
-                <div className="w-fit shrink-0 pb-4">
+                    Full width, because every other control in this column is —
+                    the sliders below run margin to margin, and a content-sized
+                    track parked at the left of them is the one thing here that
+                    reads as a badge rather than as a row.
+
+                    That is only safe with `shape="block"`, and the two go
+                    together. Stretching the track alone leaves a run of empty
+                    track past the last cell that reads as a fourth slot never
+                    filling; it is `block` that makes the cells thirds of the
+                    track, so there is no leftover to misread. The toolbar's copy
+                    keeps the circle — it is an object in a row there, not a row
+                    itself. */}
+                <div className="w-full shrink-0 pb-4">
                   <ShaderTabs
                     shaderId={shaderId}
                     onShaderChange={onShaderChange}
                     layoutIdPrefix="panel"
                     size="mobile"
+                    shape="block"
                     disabled={isRecording}
                   />
                 </div>

@@ -33,8 +33,14 @@ interface SegmentedTabsProps {
    * circle and a word wants a pill. Both are mounted side by side in the desktop
    * bar — 01/02/03 against Image/Video — so it cannot be one choice for the
    * component. See SIZES.
+   *
+   * `block` is the exception that proves the rule: there the cell is not sized
+   * by its contents at all but is a division of the track, which stretches to
+   * whatever column it is dropped into. It is the shape for a track that has to
+   * be one of the column's rows rather than an object sitting in it — the mobile
+   * sheet, where every other control is a full-width slider.
    */
-  shape?: "pill" | "circle"
+  shape?: "pill" | "circle" | "block"
   /**
    * Inert and dimmed. Used while a recording is running, where changing the
    * capture mode mid-clip would freeze the canvas halfway through it.
@@ -69,12 +75,17 @@ interface SegmentedTabsProps {
  * component — that bar is sized for thumbs, and its own row has no slot or
  * shutter beside the track to line up with.
  *
- * The height is the fixed number in both shapes; only the width differs, and
- * what the cell holds is what decides it. A `pill` is `px-3` and comes out as
- * wide as the word inside it. A `circle` is `size-*`, the same number as the
- * height, which is what a numeral wants — it has no length to express. Neither
- * needs a radius of its own: the cell carries `rounded-full`, so a square box
- * *is* the circle.
+ * The height is the fixed number in all three shapes; only the width differs.
+ * For two of them what the cell holds is what decides it: a `pill` is `px-3` and
+ * comes out as wide as the word inside it, and a `circle` is `size-*`, the same
+ * number as the height, which is what a numeral wants — it has no length to
+ * express. Neither needs a radius of its own: the cell carries `rounded-full`,
+ * so a square box *is* the circle.
+ *
+ * `block` inverts that. The cell is `flex-1` — a third of whatever the track is
+ * — and the track is the thing being sized, by the column it sits in. It is the
+ * one shape that has to state its radius, because a stretched cell is no longer
+ * its own height and `rounded-full` would read as a lozenge. See BLOCK_*_RADIUS.
  *
  * Both are on screen at once in the desktop bar, which is why this is the
  * caller's choice and not the component's: the shader track holds 01/02/03 and
@@ -101,9 +112,28 @@ interface SegmentedTabsProps {
  * lib/toolbar-geometry.ts. Keep it in step with the classes beside it.
  */
 const SIZES = {
-  desktop: { track: "gap-0 p-1", pill: "h-9 px-3", circle: "size-9", text: "text-[13px]", cellHeight: 36 },
-  mobile: { track: "gap-1 p-1", pill: "h-10 px-3", circle: "size-10", text: "text-[13px]", cellHeight: 40 },
+  desktop: { track: "gap-0 p-1", pill: "h-9 px-3", circle: "size-9", block: "h-9 flex-1", text: "text-[13px]", cellHeight: 36 },
+  mobile: { track: "gap-1 p-1", pill: "h-10 px-3", circle: "size-10", block: "h-10 flex-1", text: "text-[13px]", cellHeight: 40 },
 } as const
+
+/**
+ * The `block` shape's two corners, and the only place in this component where a
+ * radius is a number rather than `rounded-full`.
+ *
+ * 12 is the track. The same number as SHEET_RADIUS in controls-panel.tsx, so
+ * the panel and the one boxed control inside it round by one amount rather than
+ * two. Echoed rather than derived — the track is inset from the sheet's edge, so
+ * the two corners are never concentric and only ever seen apart.
+ *
+ * 8 is the cell, and it is 12 minus the 4px of `p-1` above: the concentric
+ * inner radius, the one that keeps the cell's corner parallel to the track's
+ * instead of cutting inside it. It lands on the sliders' `rounded-[8px]`
+ * (parameter-slider.tsx) by construction rather than by coincidence, which is
+ * the point — a selected cell and the slider under it are the same object in
+ * one column. Move the track's inset and both of these move.
+ */
+const BLOCK_TRACK_RADIUS = 12
+const BLOCK_CELL_RADIUS = 8
 
 /**
  * A row of choices with the selected one raised out of the track.
@@ -132,6 +162,7 @@ export function SegmentedTabs({
   const prefersReducedMotion = useReducedMotion()
   const substrate = useSurface()
   const raised = raisedThumb(substrate)
+  const isBlock = shape === "block"
 
   const handleSelect = (id: string) => {
     if (disabled || id === value) return
@@ -147,11 +178,16 @@ export function SegmentedTabs({
       // for the controls it hides behind the sheet, rather than a new disabled
       // variant that would have to invent its own colour.
       className={cn(
-        "flex items-center rounded-full bg-foreground/[0.06] transition-opacity duration-150 ease-out motion-reduce:transition-none",
+        "flex items-center bg-foreground/[0.06] transition-opacity duration-150 ease-out motion-reduce:transition-none",
+        // A block track is a row of the column it was dropped into, so it takes
+        // that column's width and a stated corner. Every other shape is an
+        // object sized by its cells, and stays a pill around them.
+        isBlock ? "w-full" : "rounded-full",
         SIZES[size].track,
         disabled && "pointer-events-none",
         disabled && dimWhenDisabled && "opacity-40",
       )}
+      style={isBlock ? { borderRadius: BLOCK_TRACK_RADIUS } : undefined}
     >
       {options.map((option) => {
         const isSelected = option.id === value
@@ -166,11 +202,13 @@ export function SegmentedTabs({
             disabled={disabled}
             onClick={() => handleSelect(option.id)}
             className={cn(
-              "relative flex items-center justify-center rounded-full transition-[color,transform] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
+              "relative flex items-center justify-center transition-[color,transform] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
+              !isBlock && "rounded-full",
               SIZES[size][shape],
               SIZES[size].text,
               isSelected ? "text-foreground" : "text-muted-foreground hoverFine:text-foreground",
             )}
+            style={isBlock ? { borderRadius: BLOCK_CELL_RADIUS } : undefined}
           >
             {isSelected && (
               <motion.span
@@ -180,7 +218,9 @@ export function SegmentedTabs({
                 transition={spring.moderate}
                 aria-hidden
                 className={cn("absolute inset-0", raised)}
-                style={{ borderRadius: SIZES[size].cellHeight / 2 }}
+                style={{
+                  borderRadius: isBlock ? BLOCK_CELL_RADIUS : SIZES[size].cellHeight / 2,
+                }}
               />
             )}
             {/* Above the indicator, which is painted into the same box. */}

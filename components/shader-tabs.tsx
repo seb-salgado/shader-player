@@ -13,6 +13,8 @@ interface ShaderTabsProps {
    */
   layoutIdPrefix: string
   size?: "desktop" | "mobile"
+  /** See SegmentedTabs. The sheet takes `block`; the toolbar keeps the circle. */
+  shape?: "circle" | "block"
   disabled?: boolean
 }
 
@@ -24,14 +26,21 @@ interface ShaderTabsProps {
  * picker the moment that arrived; all that is left here is the list.
  *
  * The cells read 01, 02, 03 rather than Haze, Bars and Rings — see `label` on
- * ShaderConfig for why, and `name` beside it for where the words went. A numeral
- * takes the circle shape; the mode track next to it keeps the pill.
+ * ShaderConfig for why, and `name` beside it for where the words went. That
+ * holds at any cell width: the argument there is that the word is falsifiable by
+ * the sliders, not that the cell is too small to hold one.
+ *
+ * A numeral takes the circle shape in the toolbar, where the track is an object
+ * in a row and the mode track next to it keeps the pill. The sheet asks for
+ * `block` instead — there the track is a row, not an object. Both are passed in
+ * for the same reason the shape always is: two of these are mounted at once.
  */
 export function ShaderTabs({
   shaderId,
   onShaderChange,
   layoutIdPrefix,
   size = "desktop",
+  shape = "circle",
   disabled = false,
 }: ShaderTabsProps) {
   const options = getAllShaderIds().map((id) => ({ id, label: getShaderConfig(id).label }))
@@ -45,7 +54,7 @@ export function ShaderTabs({
       layoutIdPrefix={layoutIdPrefix}
       layoutIdSuffix="shader-tab"
       size={size}
-      shape="circle"
+      shape={shape}
       disabled={disabled}
     />
   )
