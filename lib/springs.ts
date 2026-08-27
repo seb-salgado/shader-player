@@ -1,3 +1,25 @@
+/**
+ * The curve for anything that settles rather than snaps.
+ *
+ * The house ease-out elsewhere in this app is cubic-bezier(0.23, 1, 0.32, 1) — a
+ * quint, which covers 90% of its travel in the first 36% of its time. That is
+ * right for a 125ms colour change or a 150ms fade, where the whole animation is
+ * shorter than the eye's own settling time and the only job is to be over.
+ *
+ * It is wrong for anything with mass. Spend 280ms on that curve and 180ms of it
+ * is drift nobody can see: what reads is a hard cut followed by a crawl. This one
+ * is a cubic — 90% at 54% of the duration — so the time is spent on visible
+ * movement instead. It still starts immediately, 27% of the travel inside the
+ * first tenth of the time, so there are no dead frames after a press.
+ *
+ * It is also the closest bezier to a bounce-0 spring, which matters here rather
+ * than in the abstract: the controls panel already settles on one when it is
+ * dragged (controlsSplit.detentSpring). Tapping the button to summon that same
+ * panel now moves it the same way, instead of giving one object two
+ * personalities depending on how it was asked.
+ */
+export const settleEase = "cubic-bezier(0.33, 1, 0.68, 1)";
+
 export const spring = {
   fast: {
     type: "spring" as const,
@@ -326,36 +348,46 @@ export const controlsSplit = {
   canvasGapPx: 8,
 
   /**
-   * The house ease-out, and it is the right one even though this is an element
-   * *moving on screen* rather than entering — which normally argues for an
-   * ease-in-out.
+   * An ease-out, and it stays one even though this is an element *moving on
+   * screen* rather than entering — which normally argues for an ease-in-out.
    *
    * The move is the response to the press. An ease-in-out is dead for its first
    * third, and dead frames immediately after a press read as latency, not as
    * restraint — the same argument galleryEffects.dismissEase makes above, for
    * the same reason.
    *
+   * What changed is *which* ease-out. This used to be the house quint, and on a
+   * quint the 280ms it ran at was visually finished at 101ms: the canvas snapped
+   * back, then drifted the last tenth of the way for another 180ms. Half the
+   * screen changing composition at dropdown speed, with a crawl on the end of
+   * it. See settleEase for the trade, and detentSpring for what it now matches.
+   *
    * No spring, and no bounce. The return leg ends at scale(1), which is the
    * canvas at full size against the viewport edges and the control bar: an
    * overshoot has nowhere to go but off screen and underneath the bar. Bouncing
    * only on the way in would be worse — one gesture, two personalities.
    */
-  ease: "cubic-bezier(0.23, 1, 0.32, 1)",
+  ease: settleEase,
 
   /**
    * Enter: you press, the bar clears, the viewfinder pulls back, the controls
    * arrive. The bar's own departure is not here — it is the `hide()` helper in
-   * MobileNav, unchanged, because the bar already had one way of putting a
-   * control away and this is not a reason to give it a second.
+   * MobileNav, which shares this curve but keeps its own, shorter durations.
    *
    * The panel is held back until the canvas has covered most of its distance.
-   * On this curve that is about 85% at 110ms, so the room exists before anything
+   * On this curve that is about 85% at 170ms, so the room exists before anything
    * is put in it.
+   *
+   * The whole thing reads as roughly 290ms, which is the point of the numbers
+   * rather than a consequence of them: it sits between the 320ms the panel takes
+   * to settle when it is *dragged* and the 450ms of the fullscreen gallery
+   * morph. That is the band a half-screen composition change belongs in. It used
+   * to read as 175ms, which is where the dropdowns live.
    */
   enter: {
-    canvasMs: 280,
-    panelMs: 180,
-    panelDelayMs: 110,
+    canvasMs: 360,
+    panelMs: 220,
+    panelDelayMs: 170,
   },
 
   /**
@@ -364,19 +396,20 @@ export const controlsSplit = {
    *
    * Order is reversed, and that ordering is the mechanism rather than a flourish:
    * the panel is opaque and sits above the canvas, so it has to be most of the
-   * way gone before the canvas grows back into its space. Leaving on 100ms
-   * against the canvas's 30ms delay buys exactly that.
+   * way gone before the canvas grows back into its space. 140ms on this curve is
+   * 90% gone by 76ms, which is what the canvas's 50ms delay is buying.
    */
   exit: {
-    panelMs: 100,
-    canvasMs: 200,
-    canvasDelayMs: 30,
+    panelMs: 140,
+    canvasMs: 300,
+    canvasDelayMs: 50,
     /**
      * How long the bar waits before coming back. The bar is the destination, so
-     * it arrives last — and more practically, fading it up underneath a panel
+     * it arrives last: at 120ms it starts once the panel has cleared and lands a
+     * hair behind the canvas. More practically, fading it up underneath a panel
      * that is still fading down is two crossfading planes in the same place.
      */
-    barDelayMs: 60,
+    barDelayMs: 120,
   },
 
   /**

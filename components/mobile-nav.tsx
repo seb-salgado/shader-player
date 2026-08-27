@@ -8,7 +8,7 @@ import { ShutterButton } from "./shutter-button"
 import { ModeTabs, type CaptureMode } from "./mode-tabs"
 import { playDigitalClick } from "@/lib/audio-feedback"
 import { useReducedMotion, type MotionValue } from "framer-motion"
-import { controlsSplit } from "@/lib/springs"
+import { controlsSplit, settleEase } from "@/lib/springs"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 /** Matches the iOS camera proportions: round thumb, round control. The shutter
@@ -79,9 +79,17 @@ export function MobileNav({
    * size, it withdraws. Dropped under reduced motion, where the fade alone still
    * carries the change.
    *
-   * cubic-bezier(0.23, 1, 0.32, 1) is a hard ease-out — most of the distance is
-   * covered in the first third — so the control is perceptually gone well before
-   * the 180ms is up, and the shutter has the moment to itself.
+   * `settleEase`, the same curve the canvas and the panel move on: the bar is a
+   * third of one gesture, not a separate event happening nearby. What is *not*
+   * shared is the duration. These controls are 44 and 48px; the canvas is half
+   * the screen. Grading duration by mass is what lets the small things read as
+   * the receipt for the press while the big ones read as having weight — the bar
+   * is done at about 130ms, the canvas is still moving at 190ms.
+   *
+   * Both numbers went up when the split was recalibrated, and that reaches the
+   * recording exit as well. Deliberately: a bar that cleared at one speed for
+   * the panel and another for a clip would be the two bars this helper exists to
+   * prevent.
    *
    * Nothing reflows on the way out. Every slot in the row is fixed width, so the
    * controls go from their places rather than the row closing over them, and
@@ -102,7 +110,7 @@ export function MobileNav({
     transitionDuration: prefersReducedMotion ? "0ms" : `${duration}ms`,
     transitionDelay:
       hidden || prefersReducedMotion ? "0ms" : `${controlsSplit.exit.barDelayMs}ms`,
-    transitionTimingFunction: "cubic-bezier(0.23, 1, 0.32, 1)",
+    transitionTimingFunction: settleEase,
   })
 
   /**
@@ -147,7 +155,7 @@ export function MobileNav({
             isRecording={isRecording}
             progress={recordingProgress}
             className="transition-[opacity,transform]"
-            style={hide(150, controlsOpen)}
+            style={hide(220, controlsOpen)}
           />
 
           {/* The outer slots are the same width, which is what keeps the tabs
@@ -170,7 +178,7 @@ export function MobileNav({
                 controls when it starts rolling. */}
             <div
               className="relative z-10 shrink-0 transition-[opacity,transform]"
-              style={{ ...hide(180, hiddenForClip), width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
+              style={{ ...hide(240, hiddenForClip), width: THUMBNAIL_SIZE, height: THUMBNAIL_SIZE }}
             >
               {showThumbnail && (
                 <CaptureSlot
@@ -195,10 +203,10 @@ export function MobileNav({
                 that has to be reachable in a single tap: it decides what the
                 shutter above it does. The shader is a look, and looks belong with
                 the parameters that shape them. */}
-            {/* Leaves on the same 180ms and the same curve as the thumbnail,
+            {/* Leaves on the same 240ms and the same curve as the thumbnail,
                 which is the whole of why they are one gesture rather than two
                 things that happened at once. */}
-            <div className="transition-[opacity,transform]" style={hide(180, hiddenForClip)}>
+            <div className="transition-[opacity,transform]" style={hide(240, hiddenForClip)}>
               {videoSupported && (
                 <ModeTabs
                   mode={mode}
@@ -225,7 +233,7 @@ export function MobileNav({
               }}
               className="flex items-center justify-center rounded-full bg-foreground/[0.06] text-muted-foreground transition-[color,opacity,transform] hoverFine:text-foreground active:scale-[0.97]"
               aria-label="Shader controls"
-              style={{ ...hide(180, controlsOpen), width: FILTERS_SIZE, height: FILTERS_SIZE }}
+              style={{ ...hide(240, controlsOpen), width: FILTERS_SIZE, height: FILTERS_SIZE }}
             >
               <span
                 aria-hidden
