@@ -265,6 +265,12 @@ export const exitFallbackMs = (tier: { exit: { duration: number } }) =>
  *    silent for the whole transition. A height animation would have wiped and
  *    redrawn the buffer once per frame.
  *
+ *    Silent observation was only ever half of that, and for a while it was the
+ *    half that was true: the callback measured `getBoundingClientRect()`, which
+ *    *is* the transformed box, so anything else that called it mid-scale sized
+ *    the buffer to the shrinking picture. See the note on `resize` in
+ *    ShaderCanvas for what that cost — the hairline along this edge among it.
+ *
  * `transform-origin: top center`, so the top edge never moves and the gutters
  * open symmetrically.
  */

@@ -147,10 +147,39 @@ export const ShaderCanvas = forwardRef<ShaderCanvasRef, ShaderCanvasProps>(({ pa
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1
-      const rect = canvas.getBoundingClientRect()
 
-      canvas.width = rect.width * dpr
-      canvas.height = rect.height * dpr
+      // `clientWidth`/`clientHeight`, not `getBoundingClientRect()`, and the
+      // difference is the whole of this function.
+      //
+      // The rect is the *transformed* box; these are the layout box. On mobile
+      // the viewfinder is scaled down to make room for the controls panel (see
+      // controlsSplit), and a buffer sized from the rect follows that scale —
+      // which breaks in three ways at once. It reallocates and wipes the buffer
+      // against a render loop already drawing every frame. It leaves the buffer
+      // stuck at the scaled resolution after the panel closes, because
+      // ResizeObserver watches the *content* box and a transform never moves it,
+      // so nothing fires to put it back — the canvas comes back upscaled from
+      // roughly half resolution. And the scaled rect is fractional, so the
+      // device-pixel buffer truncated a hair short of the box it fills and the
+      // background showed through the last row as a hairline along the
+      // viewfinder's bottom edge.
+      //
+      // Measuring the layout box makes the buffer constant across the whole
+      // transition: the scale is presentation, and the compositor is what
+      // resamples it. `Math.ceil`, so the texture always covers its box rather
+      // than stopping a fraction of a device pixel short of it on a display
+      // whose ratio is not a whole number.
+      const width = Math.ceil(canvas.clientWidth * dpr)
+      const height = Math.ceil(canvas.clientHeight * dpr)
+
+      // Idempotent, which is what makes "no buffer churn" a guarantee rather
+      // than an assumption about who calls this. Assigning to canvas.width wipes
+      // the drawing buffer even when the value is unchanged, so the guard has to
+      // be here rather than at the call sites.
+      if (canvas.width === width && canvas.height === height) return
+
+      canvas.width = width
+      canvas.height = height
 
       gl.viewport(0, 0, canvas.width, canvas.height)
 
