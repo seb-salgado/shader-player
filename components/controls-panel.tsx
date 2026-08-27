@@ -120,11 +120,10 @@ export function ControlsPanel({
   const prefersReducedMotion = useReducedMotion()
   const returnFocusRef = useRef<HTMLElement | null>(null)
   const scrimRef = useRef<HTMLDivElement>(null)
-  const { sheetRef, detent, toggle, onPointerDown, restY } = useSheetDetent(open)
+  const { frameRef, detent, toggle, onPointerDown, restY } = useSheetDetent(open)
 
-  const { enter, exit, ease, panelTravelPx, tallTopPx } = controlsSplit
-  const duration = open ? enter.panelMs : exit.panelMs
-  const delay = open ? enter.panelDelayMs : 0
+  const { enter, exit, ease, panelTravel, tallTopPx } = controlsSplit
+  const duration = open ? enter.durationMs : exit.durationMs
 
   const updateParam = (key: string, value: number | string) => {
     setParams({ ...params, [key]: value })
@@ -185,7 +184,15 @@ export function ControlsPanel({
           // is the natural way back out. Radix's own outside test is DOM
           // containment, not geometry, so it still reads a tap on the canvas
           // correctly.
-          className="dark pointer-events-none fixed inset-x-0 bottom-0 z-50 text-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 motion-reduce:animate-none"
+          ref={frameRef}
+          // No fade in either direction, and that is the point of the change.
+          // `animate-in`/`animate-out` on their own resolve to a pure translate:
+          // tw-animate-css defaults --tw-enter-opacity and --tw-exit-opacity to
+          // 1, so the two keyframes move this box and touch nothing else. An
+          // opaque half-screen plane that dissolves in place is the thing being
+          // replaced — and a sheet that faded *while* it travelled would show
+          // the canvas through itself on the way.
+          className="dark pointer-events-none fixed inset-x-0 bottom-0 z-50 text-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none"
           style={{
             // How far the panel can ever reach — not where it rests. The split is
             // controlsSplit.openFraction, applied to the sheet below as a
@@ -201,30 +208,37 @@ export function ControlsPanel({
             // root needs for h-screen/100dvh has nothing to guard against, and
             // the number is free to have exactly one home.
             top: `${tallTopPx}px`,
+            // Seeded here and then rewritten on this element by useSheetDetent,
+            // never restated by React — see the sheet below, which is where it
+            // is spent. It lives on the frame rather than on the sheet because
+            // the travel expression underneath has to read it: this box's
+            // distance to off screen is 100dvh less its own top, less however
+            // far the sheet inside it is already pushed down.
+            "--sheet-y": restY.split,
             // The travel, from the token rather than from a slide-in-from-*
-            // utility, so `panelTravelPx` is the only place it is written down.
-            // tw-animate-css's enter/exit keyframes read exactly these two.
-            "--tw-enter-translate-y": `${panelTravelPx}px`,
-            "--tw-exit-translate-y": `${panelTravelPx}px`,
+            // utility, so `panelTravel` is the only place it is written down.
+            // tw-animate-css's enter/exit keyframes read exactly these two, and
+            // substitute them when each animation starts — which is what lets
+            // one expression serve an exit from either detent.
+            "--tw-enter-translate-y": panelTravel,
+            "--tw-exit-translate-y": panelTravel,
             animationDuration: prefersReducedMotion ? "0ms" : `${duration}ms`,
-            animationDelay: prefersReducedMotion ? "0ms" : `${delay}ms`,
             animationTimingFunction: ease,
-            // Required, not defensive. tw-animate-css defaults the fill mode to
-            // `forwards`, so for the length of animationDelay the panel would
-            // sit at its *resting* style — fully opaque, in place — and then
-            // snap back to the start of the animation. `both` holds the first
-            // keyframe through the delay instead.
-            animationFillMode: "both",
+            // No animationDelay and no fill mode. The panel used to be held back
+            // until the canvas had made room, which needed `both` to stop
+            // tw-animate-css's `forwards` default from parking it at its resting
+            // style for the length of the wait. It travels with the canvas now,
+            // so there is no delay to hold anything through, and the default
+            // `forwards` is what keeps the sheet off screen until Radix unmounts
+            // it. See controlsSplit.enter for why the wait is gone.
           } as React.CSSProperties}
         >
           {/* The sheet. Everything that is painted, and the only thing that moves
               between the two detents.
 
-              --sheet-y is seeded here and then never restated by React.
-              useSheetDetent rewrites it on this element every frame, and a
-              render that re-declared it would snap the sheet back to its resting
-              value mid-flight — so it is a constant in this object, which the
-              panel can afford because it always mounts at the split.
+              --sheet-y is inherited from the frame above, which is where
+              useSheetDetent writes it every frame and where the enter/exit
+              travel is measured from. This element only spends it.
               --sheet-slack is the opposite: genuinely state, changing only when
               the detent does, and the scroller below is where it is spent.
 
@@ -232,10 +246,8 @@ export function ControlsPanel({
               elements that paint it, so the header and the scrim inherit one
               value and cannot fall out of step with the sheet behind them. */}
           <div
-            ref={sheetRef}
             className="pointer-events-auto flex h-full flex-col will-change-transform"
             style={{
-              "--sheet-y": restY.split,
               "--sheet-slack": detent === "tall" ? "0px" : restY.split,
               "--panel-surface": PANEL_SURFACE,
               transform: "translate3d(0, var(--sheet-y), 0)",

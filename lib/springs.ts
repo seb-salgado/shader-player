@@ -268,6 +268,13 @@ export const exitFallbackMs = (tier: { exit: { duration: number } }) =>
  * `transform-origin: top center`, so the top edge never moves and the gutters
  * open symmetrically.
  */
+/**
+ * The margin left above the panel at the lifted detent. Hoisted out of the token
+ * below because the travel expression has to reference it, and an object literal
+ * cannot read its own keys.
+ */
+const SHEET_TOP_PX = 32;
+
 export const controlsSplit = {
   /**
    * The share of the viewport the viewfinder keeps while the controls are open.
@@ -310,7 +317,7 @@ export const controlsSplit = {
    * composition rests on. It is under the 44px a primary target would need, but
    * this is not one — the X and Escape both close from here too.
    */
-  tallTopPx: 32,
+  tallTopPx: SHEET_TOP_PX,
 
   /**
    * The settle after the finger lets go.
@@ -370,55 +377,86 @@ export const controlsSplit = {
   ease: settleEase,
 
   /**
-   * Enter: you press, the bar clears, the viewfinder pulls back, the controls
-   * arrive. The bar's own departure is not here — it is the `hide()` helper in
-   * MobileNav, which shares this curve but keeps its own, shorter durations.
+   * Enter: you press, the bar clears, and the screen splits — the viewfinder
+   * stepping back and the sheet rising to meet it.
    *
-   * The panel is held back until the canvas has covered most of its distance.
-   * On this curve that is about 85% at 170ms, so the room exists before anything
-   * is put in it.
+   * **One duration for both halves, and that is the whole design of this
+   * token.** The panel used to be held back 170ms and then materialise in the
+   * room the canvas had left, because it only travelled 8px: with nothing to
+   * follow, arriving early would have read as a layer appearing over a canvas
+   * still in motion. A sheet that actually travels does not have that problem —
+   * it has the opposite one. Two elements moving on one axis are only ever one
+   * gesture if they share a curve *and* a duration, so they are written as a
+   * single number rather than as two that have to be kept in step.
    *
-   * The whole thing reads as roughly 290ms, which is the point of the numbers
-   * rather than a consequence of them: it sits between the 320ms the panel takes
-   * to settle when it is *dragged* and the 450ms of the fullscreen gallery
-   * morph. That is the band a half-screen composition change belongs in. It used
-   * to read as 175ms, which is where the dropdowns live.
+   * They are not converging, which is what makes this legal. The canvas scales
+   * from `transform-origin: top center`, so its bottom edge travels *up*; the
+   * sheet's top edge travels up behind it. Same direction, same curve, same
+   * duration, landing canvasGapPx apart on one line. The screen splits open in
+   * one move instead of in two beats.
+   *
+   * 360ms for about 50dvh of sheet travel — roughly 400px on a phone, which is
+   * the band Vaul and the iOS sheets sit in, and the same number the canvas was
+   * already tuned to.
+   *
+   * The bar's departure is not here. It is the `hide()` helper in MobileNav,
+   * which shares this curve but keeps its own, shorter durations: those controls
+   * are 44 and 48px and this is half the screen.
    */
   enter: {
-    canvasMs: 360,
-    panelMs: 220,
-    panelDelayMs: 170,
+    durationMs: 360,
   },
 
   /**
    * Exit: the mirror, and about 17% quicker — the same relationship the sheet
    * this replaced had between its 250ms in and 200ms out.
    *
-   * Order is reversed, and that ordering is the mechanism rather than a flourish:
-   * the panel is opaque and sits above the canvas, so it has to be most of the
-   * way gone before the canvas grows back into its space. 140ms on this curve is
-   * 90% gone by 76ms, which is what the canvas's 50ms delay is buying.
+   * No ordering left to arrange, and that is what the slide bought. While the
+   * panel was a fade, it was an opaque plane sitting over the canvas: it had to
+   * be most of the way gone before the canvas could grow back through it, which
+   * is what the 50ms canvas delay was for. A sheet leaves the frame instead of
+   * dissolving in place, and it leaves *downward* — the same direction the
+   * canvas's bottom edge is travelling as it grows. Nothing is uncovered that
+   * was not already the canvas's own space, so the two start on the same frame.
    */
   exit: {
-    panelMs: 140,
-    canvasMs: 300,
-    canvasDelayMs: 50,
+    durationMs: 300,
     /**
-     * How long the bar waits before coming back. The bar is the destination, so
-     * it arrives last: at 120ms it starts once the panel has cleared and lands a
-     * hair behind the canvas. More practically, fading it up underneath a panel
-     * that is still fading down is two crossfading planes in the same place.
+     * How long the bar waits before coming back.
+     *
+     * The bar is the destination, so it arrives last — but the reason is no
+     * longer that fading it up under a fading panel would be two crossfading
+     * planes. It is occlusion: the sheet slides down *over* the bar on its way
+     * out. 120ms is where the descending edge has just cleared the shutter, so
+     * the controls fade up into space that is already theirs.
      */
     barDelayMs: 120,
   },
 
   /**
-   * How far the panel travels on the way in, in px. Eight, and no more.
+   * How far the panel travels: from wherever it is resting to fully off screen.
    *
-   * The canvas is the only thing in this transition that really moves; the panel
-   * materialises in the room the canvas left. A panel sliding up while the
-   * canvas shrinks down is two elements converging on one axis — and it would
-   * re-import the very sheet vocabulary this change exists to remove.
+   * Eight pixels and a fade, once, on the argument that the canvas is the only
+   * thing that really moves and the panel merely materialises in the room it
+   * left — a slide would re-import the sheet vocabulary the split existed to
+   * remove. The argument was about *sliding over* the canvas, and it survives:
+   * this sheet still never covers the viewfinder on its way in. What it does not
+   * survive is the reading. A half-screen opaque plane that fades has no
+   * direction, so nothing said where it came from or where the drag could take
+   * it — and the panel is draggable, which is a fact a fade actively hides.
+   *
+   * Written as the distance to the viewport's bottom edge rather than as a
+   * constant, which is what makes one expression serve every case. The sheet's
+   * box is pinned at `top: tallTopPx`, so its top edge sits at
+   * `tallTopPx + --sheet-y`, and the run to off screen is whatever is left of
+   * 100dvh. Substituted at the start of each animation, so the *exit* is correct
+   * from the lifted detent and from the split without either one being special
+   * cased — and the enter, which always opens at the split, resolves to exactly
+   * openFraction.
+   *
+   * It reads `--sheet-y`, which is why that property is declared on the panel's
+   * fixed frame rather than on the sheet it positions. Same subtree, same style
+   * recalc either way; see ControlsPanel.
    */
-  panelTravelPx: 8,
+  panelTravel: `calc(100dvh - ${SHEET_TOP_PX}px - var(--sheet-y))`,
 } as const;

@@ -65,7 +65,20 @@ const EDGE_RESISTANCE = 0.4
  * left to unmounting.
  */
 export function useSheetDetent(open: boolean) {
-  const sheetRef = useRef<HTMLDivElement>(null)
+  /**
+   * The panel's fixed frame — not the sheet inside it.
+   *
+   * `--sheet-y` is declared and rewritten here and inherited by the sheet, which
+   * spends it on a transform. One level up because the frame's own enter/exit
+   * animation has to read it to know how far it is from off screen; see
+   * controlsSplit.panelTravel. The frame is the sheet's only ancestor inside the
+   * portal, so the style recalc a custom property triggers reaches exactly the
+   * same subtree it did before.
+   *
+   * offsetHeight is identical on both — the sheet is `h-full` of this box — so
+   * measureTravel is unaffected by which one it measures.
+   */
+  const frameRef = useRef<HTMLDivElement>(null)
   const [detent, setDetent] = useState<SheetDetent>("split")
   const prefersReducedMotion = useReducedMotion()
 
@@ -82,33 +95,55 @@ export function useSheetDetent(open: boolean) {
   } | null>(null)
 
   /**
-   * Back to the split whenever the panel closes.
+   * Back to the split whenever the panel opens.
    *
-   * Not something a fresh mount does for us, and that is the trap: Radix
-   * unmounts the *portal's contents* on close, but ControlsPanel itself is
-   * rendered unconditionally by MobileNav and never goes away — so this hook's
-   * state outlives the element it describes. Left alone, the panel reopens
-   * claiming a detent that the newly created sheet, whose custom properties are
-   * seeded for the split, is not at: the slack says tall, the transform says
-   * split, and the last rows of the list are unreachable.
+   * Something has to do this, and that is the trap: Radix unmounts the *portal's
+   * contents* on close, but ControlsPanel itself is rendered unconditionally by
+   * MobileNav and never goes away — so this hook's state outlives the element it
+   * describes. Left alone, the panel reopens claiming a detent that the newly
+   * created frame, whose custom properties are seeded for the split, is not at:
+   * the slack says tall, the transform says split, and the last rows of the list
+   * are unreachable.
    *
    * Resetting rather than persisting is also the behaviour the design wants. The
    * lifted detent is an escalation, asked for by grabbing the panel; carrying it
    * over into the next session of the panel would be answering a question the
    * user has not asked yet.
+   *
+   * **On open, and not on close, which is a correction.** The exit is a slide
+   * now, and it is measured from wherever the sheet is standing — the panel's
+   * travel is `100dvh - tallTopPx - var(--sheet-y)`, resolved when the animation
+   * starts. Radix keeps the contents mounted for the length of that animation,
+   * so anything this hook writes on close lands *during* the exit. Resetting
+   * there did two things at once: `y.jump(0)` fired the change handler below and
+   * snapped a dragged sheet up to the lifted detent as it left, and the detent
+   * flip re-measured the travel out from under the running animation. Doing it
+   * on the way in leaves the exit reading the position the panel was actually
+   * closed from.
+   *
+   * The cost is one render at open where `detent` is still `tall` — the newly
+   * mounted scroller gets the wrong slack for a frame. Nothing is scrolled yet
+   * and the padding it changes is at the bottom of a sheet that is still off
+   * screen, so there is nothing to see.
+   *
+   * The write after the jump is not defensive. `y.jump(0)` fires the change
+   * handler, which puts `--sheet-y: 0px` on the frame — the *lifted* position.
+   * Both writes are synchronous in this effect, so only the second is ever
+   * painted, but the order matters and cannot be swapped.
    */
   useEffect(() => {
-    if (open) return
+    if (!open) return
     animationRef.current?.stop()
     animationRef.current = null
     travelRef.current = 0
     y.jump(0)
+    frameRef.current?.style.setProperty("--sheet-y", REST_Y.split)
     setDetent("split")
   }, [open, y])
 
-  /** The gap between the detents in px, from the sheet's own box. */
+  /** The gap between the detents in px, from the panel's own box. */
   const measureTravel = useCallback(() => {
-    const sheet = sheetRef.current
+    const sheet = frameRef.current
     if (!sheet) return 0
     // Recovered from the sheet rather than read off the window, so the finger is
     // measured against the same box the CSS laid out. offsetHeight is the
@@ -124,7 +159,7 @@ export function useSheetDetent(open: boolean) {
   // also what keeps the whole gesture on the compositor: nothing repaints while
   // the finger is down.
   useMotionValueEvent(y, "change", (value) => {
-    const sheet = sheetRef.current
+    const sheet = frameRef.current
     if (!sheet) return
     sheet.style.setProperty("--sheet-y", `${value}px`)
   })
@@ -144,7 +179,7 @@ export function useSheetDetent(open: boolean) {
    */
   const settle = useCallback(
     (target: SheetDetent, velocityPxPerMs = 0) => {
-      const sheet = sheetRef.current
+      const sheet = frameRef.current
       if (!sheet) return
 
       animationRef.current?.stop()
@@ -302,5 +337,5 @@ export function useSheetDetent(open: boolean) {
     [detent, measureTravel, settle, suppressNextClick, y],
   )
 
-  return { sheetRef, detent, toggle, onPointerDown, restY: REST_Y }
+  return { frameRef, detent, toggle, onPointerDown, restY: REST_Y }
 }

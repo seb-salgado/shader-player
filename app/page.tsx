@@ -380,17 +380,15 @@ export default function Home() {
               transformOrigin: "top center",
               transform: isCanvasScaled ? `scale(${canvasScale})` : undefined,
               transitionProperty: "transform",
+              // One duration, shared with the panel, and no delay in either
+              // direction. This edge and the sheet's top edge travel the same
+              // way at the same time on the same curve — the screen splitting
+              // open rather than the canvas moving and the panel then following
+              // it. Both halves of that live in controlsSplit.enter/exit; the
+              // sequencing this used to do is gone with the fade that needed it.
               transitionDuration: prefersReducedMotion
                 ? "0ms"
-                : `${controlsOpen ? controlsSplit.enter.canvasMs : controlsSplit.exit.canvasMs}ms`,
-              // Asymmetric on purpose. On the way in the canvas moves first and
-              // the panel follows it into the room; on the way out the panel has
-              // to be most of the way gone before the canvas grows back through
-              // it, so the canvas is the one that waits.
-              transitionDelay:
-                prefersReducedMotion || controlsOpen
-                  ? "0ms"
-                  : `${controlsSplit.exit.canvasDelayMs}ms`,
+                : `${controlsOpen ? controlsSplit.enter.durationMs : controlsSplit.exit.durationMs}ms`,
               transitionTimingFunction: controlsSplit.ease,
             }}
           >
