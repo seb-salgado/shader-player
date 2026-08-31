@@ -15,7 +15,7 @@ export function ColorPicker({ label, value, onChange }: ColorPickerProps) {
       onValueChange={(nextValue) => onChange(nextValue)}
       defaultFormat="hex"
       triggerShowValue
-      triggerClassName="gap-1.5 rounded-lg"
+      triggerClassName="gap-1.5 rounded-full pl-2 pr-3"
       // Unlabeled swatches sit in a wrapping row, so they size to their content
       // instead of claiming the full width and forcing one per line.
       wrapperClassName={label ? undefined : "w-auto"}
