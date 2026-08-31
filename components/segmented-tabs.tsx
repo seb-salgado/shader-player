@@ -83,9 +83,19 @@ interface SegmentedTabsProps {
  * so a square box *is* the circle.
  *
  * `block` inverts that. The cell is `flex-1` — a third of whatever the track is
- * — and the track is the thing being sized, by the column it sits in. It is the
- * one shape that has to state its radius, because a stretched cell is no longer
- * its own height and `rounded-full` would read as a lozenge. See BLOCK_*_RADIUS.
+ * — and the track is the thing being sized, by the column it sits in. Width is
+ * the *only* thing it changes: it rounds `rounded-full` like the other two, so a
+ * stretched cell comes out as a wide pill rather than as a box.
+ *
+ * It stated its own radius once — a 12px track over 8px cells, echoing the
+ * sheet's corner, on the argument that a stretched cell is no longer its own
+ * height and reads as a lozenge. Rejected in use: the sheet is a column of
+ * pills and chips, and the one boxed control in it was the thing that looked
+ * placed there rather than built in. Note what the pill costs nothing to keep —
+ * `rounded-full` resolves to half of each box's height, and the cell is shorter
+ * than the track by exactly the `p-1` inset on both sides, so `inner = outer -
+ * inset` falls out of the geometry rather than having to be stated and kept in
+ * step. Two constants and two branches went away with it.
  *
  * Both are on screen at once in the desktop bar, which is why this is the
  * caller's choice and not the component's: the shader track holds 01/02/03 and
@@ -107,33 +117,15 @@ interface SegmentedTabsProps {
  * the cells not all being the same size, and Framer's layout projection
  * interpolates whatever number it is given — so a 9999px sentinel rides the
  * whole morph as an ellipse while the real radius stays a pill at both ends.
- * The circle instances only ever travel, so the value is merely correct for
- * them rather than load-bearing. Same lesson as SLOT_RADIUS in
- * lib/toolbar-geometry.ts. Keep it in step with the classes beside it.
+ * The circle and block instances only ever travel — their cells are all one
+ * width — so the value is merely correct for them rather than load-bearing.
+ * Same lesson as SLOT_RADIUS in lib/toolbar-geometry.ts. Keep it in step with
+ * the classes beside it.
  */
 const SIZES = {
   desktop: { track: "gap-0 p-1", pill: "h-9 px-3", circle: "size-9", block: "h-9 flex-1", text: "text-[13px]", cellHeight: 36 },
   mobile: { track: "gap-1 p-1", pill: "h-10 px-3", circle: "size-10", block: "h-10 flex-1", text: "text-[13px]", cellHeight: 40 },
 } as const
-
-/**
- * The `block` shape's two corners, and the only place in this component where a
- * radius is a number rather than `rounded-full`.
- *
- * 12 is the track. The same number as SHEET_RADIUS in controls-panel.tsx, so
- * the panel and the one boxed control inside it round by one amount rather than
- * two. Echoed rather than derived — the track is inset from the sheet's edge, so
- * the two corners are never concentric and only ever seen apart.
- *
- * 8 is the cell, and it is 12 minus the 4px of `p-1` above: the concentric
- * inner radius, the one that keeps the cell's corner parallel to the track's
- * instead of cutting inside it. It lands on the sliders' `rounded-[8px]`
- * (parameter-slider.tsx) by construction rather than by coincidence, which is
- * the point — a selected cell and the slider under it are the same object in
- * one column. Move the track's inset and both of these move.
- */
-const BLOCK_TRACK_RADIUS = 12
-const BLOCK_CELL_RADIUS = 8
 
 /**
  * A row of choices with the selected one raised out of the track.
@@ -178,16 +170,15 @@ export function SegmentedTabs({
       // for the controls it hides behind the sheet, rather than a new disabled
       // variant that would have to invent its own colour.
       className={cn(
-        "flex items-center bg-foreground/[0.06] transition-opacity duration-150 ease-out motion-reduce:transition-none",
+        "flex items-center rounded-full bg-foreground/[0.06] transition-opacity duration-150 ease-out motion-reduce:transition-none",
         // A block track is a row of the column it was dropped into, so it takes
-        // that column's width and a stated corner. Every other shape is an
-        // object sized by its cells, and stays a pill around them.
-        isBlock ? "w-full" : "rounded-full",
+        // that column's width. Every other shape is an object sized by its own
+        // cells. The pill is common to all three — see SIZES.
+        isBlock && "w-full",
         SIZES[size].track,
         disabled && "pointer-events-none",
         disabled && dimWhenDisabled && "opacity-40",
       )}
-      style={isBlock ? { borderRadius: BLOCK_TRACK_RADIUS } : undefined}
     >
       {options.map((option) => {
         const isSelected = option.id === value
@@ -202,13 +193,11 @@ export function SegmentedTabs({
             disabled={disabled}
             onClick={() => handleSelect(option.id)}
             className={cn(
-              "relative flex items-center justify-center transition-[color,transform] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
-              !isBlock && "rounded-full",
+              "relative flex items-center justify-center rounded-full transition-[color,transform] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
               SIZES[size][shape],
               SIZES[size].text,
               isSelected ? "text-foreground" : "text-muted-foreground hoverFine:text-foreground",
             )}
-            style={isBlock ? { borderRadius: BLOCK_CELL_RADIUS } : undefined}
           >
             {isSelected && (
               <motion.span
@@ -218,9 +207,7 @@ export function SegmentedTabs({
                 transition={spring.moderate}
                 aria-hidden
                 className={cn("absolute inset-0", raised)}
-                style={{
-                  borderRadius: isBlock ? BLOCK_CELL_RADIUS : SIZES[size].cellHeight / 2,
-                }}
+                style={{ borderRadius: SIZES[size].cellHeight / 2 }}
               />
             )}
             {/* Above the indicator, which is painted into the same box. */}
