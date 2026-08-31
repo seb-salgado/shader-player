@@ -306,18 +306,40 @@ export function ControlsPanel({
                 </button>
               </div>
 
-              <DialogPrimitive.Close asChild>
-                <button
-                  type="button"
-                  onClick={() => playDigitalClick("strong")}
-                  className="flex w-full items-center justify-between px-4 pb-4 pt-1 transition-transform duration-[125ms] ease-[cubic-bezier(0.23,1,0.32,1)] active:scale-[0.99] motion-reduce:transform-none motion-reduce:transition-none"
-                >
-                  <DialogPrimitive.Title asChild>
-                    <span className="font-mono text-sm">Shader Controls</span>
-                  </DialogPrimitive.Title>
-                  <X className="h-4 w-4" />
-                </button>
-              </DialogPrimitive.Close>
+              {/* The title is a label, not a control. It used to be inside the
+                  close button — the button was the whole row, `w-full` with the
+                  X pushed to the far end — which made the press scale the title
+                  along with it, named the button "Shader Controls" to a screen
+                  reader, and quietly closed the panel on a tap anywhere across
+                  the header. One cause, three symptoms. The row is a plain box
+                  now and the button is the X. */}
+              <div className="flex w-full items-center justify-between px-4 pb-4 pt-1">
+                <DialogPrimitive.Title asChild>
+                  <span className="font-mono text-sm">Shader Controls</span>
+                </DialogPrimitive.Title>
+                <DialogPrimitive.Close asChild>
+                  <button
+                    type="button"
+                    aria-label="Close controls"
+                    onClick={() => playDigitalClick("strong")}
+                    // 44 square for the thumb, pulled back onto the glyph's old
+                    // position and out of the row's height so neither moves:
+                    // -14 right lands the icon's centre back at the 24px it sat
+                    // at (the same correction, for the same reason, as the
+                    // appearance toggle), and -12 top and bottom leave the box
+                    // contributing the title's 20px instead of its own 44.
+                    //
+                    // 0.9 rather than the 0.97 used everywhere else, because
+                    // what the eye reads is travel — size x (1 - scale) — not
+                    // the factor. The row this replaced was 375 wide, so 0.99
+                    // moved it ~4px; 0.97 on a 16px glyph is half a pixel, a
+                    // press you cannot see. This is the same ~2px.
+                    className="-mr-[14px] -my-3 flex size-11 shrink-0 items-center justify-center rounded-full transition-transform duration-150 ease-out active:scale-[0.9] motion-reduce:transform-none motion-reduce:transition-none"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </DialogPrimitive.Close>
+              </div>
             </div>
 
             <div className="relative min-h-0 flex-1">
