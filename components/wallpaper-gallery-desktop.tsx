@@ -49,9 +49,11 @@ export function WallpaperGalleryDesktop({
   initialIndex = 0,
   openedCaptureId,
 }: WallpaperGalleryProps) {
-  // Captures are stored oldest to newest, but desktop presents them newest at
-  // the top. Scrolling down therefore walks back through older captures. The
-  // mobile gallery keeps the stored order for its horizontal strip.
+  // Captures are stored oldest to newest and the rail shows them in that order,
+  // top to bottom, so the one you just took is the last frame on the stack.
+  // Scrolling down therefore walks *forward* through time and you scroll up to
+  // reach older captures — the same direction as the mobile strip, which runs
+  // oldest to newest left to right.
 
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
   const currentIndexRef = useRef(initialIndex)
@@ -64,7 +66,7 @@ export function WallpaperGalleryDesktop({
       ? document.activeElement
       : null,
   )
-  const { replacementStyle, beginReplacement } = useCaptureReplacement("reveal")
+  const { replacementStyle, beginReplacement } = useCaptureReplacement("step")
   // The capture as it is actually painted, for a close that has to draw its own
   // collapse. See handleClose.
   const captureRef = useRef<HTMLImageElement>(null)
@@ -231,10 +233,14 @@ export function WallpaperGalleryDesktop({
       if (Math.abs(wheelDeltaRef.current) < WHEEL_NAVIGATION_THRESHOLD) return
       if (now - lastWheelStepRef.current < WHEEL_STEP_INTERVAL_MS) return
 
+      // Down the rail, not down the list — and since the rail runs oldest at the
+      // top, those are now the same thing. A wheel step has to move the ring the
+      // way the hand moved, or the selection walks off in the opposite direction
+      // to the gesture driving it.
       const direction = wheelDeltaRef.current > 0 ? 1 : -1
       const nextIndex = Math.max(
         0,
-        Math.min(currentIndexRef.current - direction, captures.length - 1),
+        Math.min(currentIndexRef.current + direction, captures.length - 1),
       )
       wheelDeltaRef.current = 0
       if (nextIndex === currentIndexRef.current) return
@@ -278,22 +284,27 @@ export function WallpaperGalleryDesktop({
    * over the top of a list that has already changed. The outgoing frame recedes
    * and fades from the app root (see CaptureDismissal) because removing the last
    * capture closes the gallery on this same frame and the exit has to outlive
-   * that unmount. The incoming one is revealed here.
+   * that unmount. The incoming one steps in here.
    *
    * Which capture fills the slot is still worth writing down, even though it is
    * no longer also a direction. The index is moved *back* one rather than left
-   * where it is, so what you land on is the capture that was already behind this
-   * one — the next card down the stack, and the thumbnail directly beneath the
-   * selected one in the rail. Holding the index instead pulls the *newer*
-   * capture into the gap, which is the correct thing for a list and the wrong
-   * thing for a stack of photographs: you take one off the top and see what it
-   * was covering. The oldest capture is the one case with nothing behind it, so
-   * there the newer one takes the slot instead.
+   * where it is, so what you land on is the capture taken before this one — the
+   * thumbnail directly above the selected one in the rail, since the rail runs
+   * forward in time. Holding the index instead pulls the *newer* capture into
+   * the gap, which is the correct thing for a list and the wrong thing for a
+   * timeline: deleting is not the same gesture as stepping forward, and it
+   * should not consume the capture you have not looked at yet. The oldest
+   * capture is the one case with nothing before it, so there the newer one takes
+   * the slot instead. The mobile strip resolves it the same way.
    *
-   * Nothing is passed on about direction, because there is none to pass. The
-   * rail is vertical, the wheel hard-cuts between captures, and the replacement
-   * is uncovered exactly where it already was — see galleryEffects.revealScale
-   * for why this viewer gets a reveal where the touch gallery gets a slide.
+   * The direction *is* passed on now, where it used to be the one thing this
+   * delete had nothing to say about. The rail runs oldest to newest, so the
+   * capture taking the slot lives directly above the deleted one and comes in
+   * from there — and from below in the one case above, where the oldest was
+   * deleted and the newer capture steps back into its place. Same sign
+   * convention as the touch gallery, read against this surface's rail instead of
+   * that one's strip. See galleryEffects.stepPx for why it is a dozen pixels
+   * here where the touch gallery crosses a whole screen.
    */
   const handleDelete = () => {
     if (!currentCapture) return
@@ -318,7 +329,7 @@ export function WallpaperGalleryDesktop({
     currentIndexRef.current = nextIndex
     setCurrentIndex(nextIndex)
     if (prefersReducedMotion) return
-    beginReplacement()
+    beginReplacement(stepsBack ? -1 : 1)
   }
 
   const handleClose = () => {
@@ -412,16 +423,17 @@ export function WallpaperGalleryDesktop({
           onMouseLeave={showsVideo ? playback.hideControls : undefined}
         >
           {currentCapture && (
-            // A delete's reveal rides on this wrapper instead of the image.
-            // The image is a projection node, so Framer owns its transform for
-            // the length of the gallery morph; a second transform on the same
+            // A delete's step rides on this wrapper instead of the image. The
+            // image is a projection node, so Framer owns its transform for the
+            // length of the gallery morph; a second transform on the same
             // element would be overwritten mid-flight and fight the spring.
             //
-            // Which means the reveal scales about the *viewer's* centre, and the
-            // capture is centred 56px left of that — half the rail's `right-28`.
-            // At 0.98 the capture therefore drifts about a pixel as well as
-            // growing, which is nothing. Scale it any harder and that stops
-            // being true; move the origin before you do.
+            // A translate, which also retires the caveat the scale here needed:
+            // this box is the viewer's, and the capture is centred 56px left of
+            // its centre — half the rail's `right-28` — so scaling it moved the
+            // picture sideways as well as growing it, by about a pixel at 0.98
+            // and by more than that at anything deeper. A translation has no
+            // origin to be wrong about.
             <div
               className="absolute inset-0"
               style={replacementStyle}

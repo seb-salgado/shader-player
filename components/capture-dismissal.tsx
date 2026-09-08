@@ -23,13 +23,16 @@ let nextKey = 0
  * suited the material: a dispersal needs edges to read as fragments, and a soft
  * gradient has none, so it came apart into static rather than pieces.
  *
- * Only ever half of a delete. The other half — the capture behind it taking the
- * slot — is drawn by the gallery itself, which is the only place that knows what
- * shape its own list is: the touch strip slides the neighbour across, the
- * desktop stack uncovers it in place. This one is pinned to the rect the deleted
- * capture occupied and does not travel with it either way. On touch that keeps
- * the picture leaving and the picture arriving legible as two events; on desktop
- * the receding is one half of a single gesture that the reveal completes.
+ * Only ever half of a delete. The other half — the neighbour taking the slot —
+ * is drawn by the gallery itself, which is the only place that knows what shape
+ * its own list is: the touch strip slides it across a screen, the desktop viewer
+ * steps it a dozen pixels down its rail. Both come from the side the earlier
+ * capture actually lives on. This one is pinned to the rect the deleted capture
+ * occupied and does not travel with it either way, which is what keeps the
+ * picture leaving and the picture arriving legible as two events rather than as
+ * one thing sliding. It used to be the other way round on desktop, where the
+ * replacement came forward out of z and the two halves were deliberately one
+ * gesture; that reading went with a rail that put the newest capture on top.
  *
  * The deletion itself commits on the press, before either of them starts.
  *

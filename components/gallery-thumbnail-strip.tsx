@@ -225,19 +225,22 @@ export function GalleryThumbnailStrip({
   const valueRefs = useRef<(FrameValues | null)[]>([])
   const selectionTransition = prefersReducedMotion ? { duration: 0 } : SELECTION_SPRING
   const isVertical = orientation === "vertical"
-  const displayedCaptures = isVertical ? [...captures].reverse() : captures
 
-  // Registries are keyed by *display* index — the rail's own top-to-bottom
-  // order, which is reversed on desktop so the newest capture sits at the top.
-  const displayIndexOf = (captureIndex: number) =>
-    isVertical ? captures.length - 1 - captureIndex : captureIndex
+  // Both orientations run in stored order. The rail reads top to bottom as the
+  // strip reads left to right — oldest first, so the capture you just took is
+  // the last one on the stack rather than the first. The rail used to invert,
+  // which is a list's order and not a timeline's: it put the two galleries at
+  // odds about which way time ran, and it meant every index arriving here had to
+  // be flipped on the way in and back out again. One order leaves nothing to
+  // map. The index a capture has in state is the index it has in the DOM, in the
+  // value registry and under the ring.
 
   /**
    * The frames, in display order, read straight out of the DOM.
    *
    * This used to be a registry the frames wrote themselves into from a callback
    * ref, and a delete took it apart. Every frame below the deleted one changes
-   * display index, which changes the identity of its inline ref callback, and
+   * index, which changes the identity of its inline ref callback, and
    * React answers that by running the old cleanup and the new callback — but
    * interleaved through the tree, not in two clean passes. The cleanup closes
    * over the old index, so it lands on a slot a neighbour has already claimed.
@@ -367,8 +370,8 @@ export function GalleryThumbnailStrip({
 
   useEffect(() => () => scrollAnimation.current?.stop(), [])
 
-  const registerValues = useCallback((displayIndex: number, values: FrameValues | null) => {
-    valueRefs.current[displayIndex] = values
+  const registerValues = useCallback((index: number, values: FrameValues | null) => {
+    valueRefs.current[index] = values
   }, [])
 
   const measure = useCallback(() => {
@@ -547,10 +550,10 @@ export function GalleryThumbnailStrip({
    * touchscreen laptop, which lands on this rail because the desktop/mobile split
    * is a width check, and which should magnify nothing.
    */
-  const focusField = (displayIndex: number, node: HTMLElement) => {
+  const focusField = (index: number, node: HTMLElement) => {
     if (clientYRef.current !== null) return
     if (!node.matches(":focus-visible")) return
-    const center = geometryRef.current.centers[displayIndex]
+    const center = geometryRef.current.centers[index]
     if (center === undefined) return
     pointerRef.current = center
     clientYRef.current = null
@@ -567,7 +570,7 @@ export function GalleryThumbnailStrip({
   useLayoutEffect(() => {
     if (!isVertical || prefersReducedMotion) return
     // A delete leaves the value registry longer than the strip. Positions are
-    // keyed by display index, so trimming is all the compaction it needs.
+    // keyed by index, so trimming is all the compaction it needs.
     valueRefs.current.length = captures.length
     measure()
     applyField()
@@ -575,7 +578,7 @@ export function GalleryThumbnailStrip({
 
   // And again once the frames have re-registered their motion values, which they
   // do in an effect and therefore after the layout pass above. A delete renumbers
-  // every display index below it, so the pass above writes the new geometry into
+  // every index below it, so the pass above writes the new geometry into
   // the old numbering; this is the one that lands it on the right frames. It is
   // the same idempotent pass, so on every other commit it changes nothing.
   useEffect(() => {
@@ -673,8 +676,8 @@ export function GalleryThumbnailStrip({
     // the one selection the rail must *not* scroll to reveal, and it is still a
     // selection the ring has to travel to. Only the scroll below is declined.
     if (isVertical && !prefersReducedMotion) {
-      const target = displayIndexOf(currentIndex)
-      // A capture arriving or leaving renumbers every display index under the
+      const target = currentIndex
+      // A capture arriving or leaving renumbers every index under the
       // ring, so there is no travel to draw — the frame it is on has simply been
       // relabelled. Springing across that renumbering would send it on a lap of
       // the rail on every delete.
@@ -693,7 +696,7 @@ export function GalleryThumbnailStrip({
     }
 
     const scroller = scrollRef.current
-    const item = readFrames()[displayIndexOf(currentIndex)]
+    const item = readFrames()[currentIndex]
     if (!scroller || !item) return
     if (pointerSelected === currentIndex) return
 
@@ -797,27 +800,25 @@ export function GalleryThumbnailStrip({
             : "w-max min-w-full items-center justify-center gap-0 px-1",
         )}
       >
-        {displayedCaptures.map((capture, displayIndex) => {
-          const captureIndex = isVertical ? captures.length - 1 - displayIndex : displayIndex
-
+        {captures.map((capture, index) => {
           return (
             <GalleryThumbnailFrame
               key={capture.id}
               capture={capture}
-              displayIndex={displayIndex}
-              label={`Show capture ${captureIndex + 1} of ${captures.length}`}
-              selected={captureIndex === currentIndex}
+              index={index}
+              label={`Show capture ${index + 1} of ${captures.length}`}
+              selected={index === currentIndex}
               isVertical={isVertical}
               orientation={orientation}
               prefersReducedMotion={Boolean(prefersReducedMotion)}
               selectionTransition={selectionTransition}
               registerValues={registerValues}
-              onSelect={() => onSelect(captureIndex)}
+              onSelect={() => onSelect(index)}
               // On the press, not the click: keyboard activation fires `click`
               // without a `pointerdown`, so Enter on a focused frame keeps the
               // scroll that puts it in view.
               onPressFrame={() => {
-                pointerSelectRef.current = captureIndex
+                pointerSelectRef.current = index
               }}
               onFocusFrame={focusField}
               onBlurFrame={blurField}
@@ -868,17 +869,17 @@ export function GalleryThumbnailStrip({
 
 interface GalleryThumbnailFrameProps {
   capture: Capture
-  displayIndex: number
+  index: number
   label: string
   selected: boolean
   isVertical: boolean
   orientation: "horizontal" | "vertical"
   prefersReducedMotion: boolean
   selectionTransition: Transition
-  registerValues: (displayIndex: number, values: FrameValues | null) => void
+  registerValues: (index: number, values: FrameValues | null) => void
   onSelect: () => void
   onPressFrame: () => void
-  onFocusFrame: (displayIndex: number, node: HTMLElement) => void
+  onFocusFrame: (index: number, node: HTMLElement) => void
   onBlurFrame: () => void
 }
 
@@ -892,7 +893,7 @@ interface GalleryThumbnailFrameProps {
  */
 function GalleryThumbnailFrame({
   capture,
-  displayIndex,
+  index,
   label,
   selected,
   isVertical,
@@ -910,9 +911,9 @@ function GalleryThumbnailFrame({
   useEffect(() => {
     if (!isVertical) return
     const values = { transform }
-    registerValues(displayIndex, values)
-    return () => registerValues(displayIndex, null)
-  }, [displayIndex, isVertical, registerValues, transform])
+    registerValues(index, values)
+    return () => registerValues(index, null)
+  }, [index, isVertical, registerValues, transform])
 
   useEffect(() => {
     if (isVertical) return
@@ -955,7 +956,7 @@ function GalleryThumbnailFrame({
       transition={prefersReducedMotion ? { duration: 0 } : PRESS_SPRING}
       whileTap={prefersReducedMotion || isVertical ? undefined : { scale: 0.97 }}
       onPointerDown={isVertical ? onPressFrame : undefined}
-      onFocus={isVertical ? (event) => onFocusFrame(displayIndex, event.currentTarget) : undefined}
+      onFocus={isVertical ? (event) => onFocusFrame(index, event.currentTarget) : undefined}
       onBlur={isVertical ? onBlurFrame : undefined}
       onClick={onSelect}
     >

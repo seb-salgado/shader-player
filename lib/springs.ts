@@ -113,7 +113,7 @@ export const galleryMorph = {
  * desktop, which has a vertical rail and a viewer that hard-cuts between
  * captures — so the replacement crossed in from an axis that surface does not
  * have, from off screen, while the very capture it claimed to be was sitting
- * visible in the rail the whole time. See revealScale.
+ * visible in the rail the whole time. See stepPx.
  */
 export const galleryEffects = {
   /**
@@ -144,9 +144,16 @@ export const galleryEffects = {
    * as restraint. So the transform gets the ease-out it wants, and the fade
    * gets the hold it wants from a delay instead of from a curve.
    *
-   * Also the desktop reveal's curve, deliberately: the two halves of that delete
-   * are one gesture on one axis, and a shared curve is what keeps them from
-   * reading as two events that happen to overlap.
+   * Also the desktop step's curve, deliberately. Those two halves used to be one
+   * gesture on one axis — a capture receding as the card behind it came forward
+   * — and are not any more: the rail runs in time order now, so the replacement
+   * arrives from above rather than from behind, and only the exit is still on z.
+   * The shared curve is what is left holding them together, and it is enough at
+   * this size. They start on the same frame and bend the same way, which is what
+   * keeps a delete from reading as two events that happen to overlap. The touch
+   * gallery cannot do the same and does not try: a card crossing a whole screen
+   * needs the ease-in-out replaceEase documents, and 12px has no room for a slow
+   * start.
    */
   dismissEase: "cubic-bezier(0.23, 1, 0.32, 1)",
   /**
@@ -158,45 +165,58 @@ export const galleryEffects = {
    */
   dismissFadeDelayMs: 60,
   /**
-   * The neighbour stepping forward into the slot, on desktop.
+   * The neighbour stepping into the slot, on desktop — a short travel on the
+   * rail's own axis.
    *
-   * Not a slide, because the desktop viewer is not a strip. It is one slot with
+   * Not a slide, because the desktop viewer is not a strip: it is one slot with
    * a vertical rail of thumbnails beside it, and the wheel steps between
-   * captures on a hard cut — nothing ever travels into that slot, so there is no
-   * spatial habit for an entrance to be consistent with. What the viewer *is* is
-   * a stack: the capture you are looking at, and the rest behind it. Delete the
-   * top one and the next is revealed, because it was already there.
+   * captures on a hard cut, so nothing has ever travelled the width of that
+   * slot. But it is not directionless either, and that is the correction. The
+   * rail runs oldest to newest down the page, so a delete has something to say:
+   * what fills the slot is the capture *above* the one you deleted — below it in
+   * the one case where you deleted the oldest and there is nothing above — and
+   * entering from that side is the whole of what this animation is for.
    *
-   * So the entrance is the only move that is physically true here — the card
-   * behind coming forward as the one in front falls back. The exit is already
-   * receding on this axis (1 → 0.8); this is the same axis in the other
-   * direction, on the same curve. Two properties, two elements, one gesture.
+   * The 0.98 scale it replaces said something else: the card behind coming
+   * forward as the one in front falls back. That was true while the rail put the
+   * newest capture on top and the viewer read as a stack of photographs. On a
+   * timeline nothing is behind anything, and a capture arriving out of z while
+   * the ring beside it lands a frame further *up* is two different stories about
+   * one delete.
    *
-   * 0.98 and not less. The whole distance is a hair, and it has to be: the
-   * capture is not entering, it is being uncovered, and anything deeper starts
-   * to look like it flew in from behind the screen. No opacity on it either —
-   * these captures are near-identical soft gradients, and fading one up over
-   * another is how you get mush instead of a replacement.
+   * 12px, and the bracket is narrow at both ends. Under about 6 at this duration
+   * the travel reads as a rendering wobble rather than as a direction; past about
+   * 16 the slot starts to look like it scrolled, which it never does. The
+   * distance is not this animation's job anyway — the rail beside it is where a
+   * whole frame of travel actually happens.
+   *
+   * Pixels rather than a fraction of the capture, because what it is a step of
+   * is a rail frame — a fixed 56px pitch, whatever shape the capture is.
+   *
+   * No opacity on it, which is unchanged and for the unchanged reason: these
+   * captures are near-identical soft gradients, and fading one up over another
+   * is how you get mush instead of a replacement.
    */
-  revealScale: 0.98,
+  stepPx: 12,
   /**
    * Shorter than the exit on purpose, and starting on the same frame.
    *
    * The reverse of the reasoning replaceMs gives for the touch gallery. There,
    * the arrival outlasts the exit because it crosses the whole screen and is the
-   * thing worth following. Here the arrival is 2% of a scale — it has nothing to
-   * say on its own, and its whole job is to be finished and out of the way while
-   * the capture you deleted is still visibly leaving.
+   * thing worth following. Here the arrival is a dozen pixels — it has nothing to
+   * say beyond which side it came from, and its whole job is to have said it and
+   * be out of the way while the capture you deleted is still visibly leaving.
    */
-  revealMs: 200,
+  stepMs: 200,
   /**
    * The neighbour arriving in the deleted capture's place on *touch* — a full
    * slide, one screen wide, from the side of the strip it actually lives on.
    *
    * Touch only, and it stays a slide: the captures really do lie side by side in
    * a scroller here, so the strip stepping is the one true statement a delete on
-   * this surface can make. The desktop viewer has no side for a capture to come
-   * from and gets a reveal instead; see revealScale.
+   * this surface can make. The desktop viewer has a side to come from — its rail
+   * is vertical and runs oldest first — but no screen of travel to cross, so it
+   * takes a dozen pixels on that axis instead; see stepPx.
    *
    * The number was 300 and the curve was the iOS full-screen push — nearly all
    * the distance in the first half, then a long quiet settle — on the argument
