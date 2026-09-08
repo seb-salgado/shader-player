@@ -14,10 +14,18 @@ interface Dismissal {
 let publish: ((dismissal: Dismissal) => void) | null = null
 let nextKey = 0
 
+// A dev-only trap worth knowing about before you go looking for a bug that is
+// not there: `publish` is module state, and a hot update re-evaluates this
+// module — resetting it to null — without remounting the component that sets it.
+// So editing this file, or anything it imports (springs), silently stops the
+// exit from drawing. Deletes still work and nothing is logged; the capture just
+// vanishes. A full reload brings it back. Nothing to fix in production, where a
+// module is evaluated once, but it will cost you an afternoon in dev.
+
 /**
  * The capture you just deleted, leaving.
  *
- * A plain <img> that recedes to 0.8 and fades — a standard exit, not an effect.
+ * A plain <img> that fades — a standard exit, not an effect.
  * It replaces a 1.5s WebGL burn and then a 280ms particle dispersal, both of
  * which were ceremony on what is a janitorial action, and neither of which
  * suited the material: a dispersal needs edges to read as fragments, and a soft
@@ -26,7 +34,7 @@ let nextKey = 0
  * Only ever half of a delete. The other half — the neighbour taking the slot —
  * is drawn by the gallery itself, which is the only place that knows what shape
  * its own list is: the touch strip slides it across a screen, the desktop viewer
- * steps it a dozen pixels down its rail. Both come from the side the earlier
+ * steps it 28px down its rail. Both come from the side the earlier
  * capture actually lives on. This one is pinned to the rect the deleted capture
  * occupied and does not travel with it either way, which is what keeps the
  * picture leaving and the picture arriving legible as two events rather than as
@@ -98,19 +106,14 @@ export function CaptureDismissal() {
           width: dismissal.rect.width,
           height: dismissal.rect.height,
           opacity: leaving ? 0 : 1,
-          transform: leaving ? `scale(${galleryEffects.dismissScale})` : "scale(1)",
-          // Scaled from its own centre, which is the one thing here that is not
-          // worth a token: this is a picture receding, not a popover growing out
-          // of the control that opened it. There is no trigger to point at.
-          transformOrigin: "center",
-          // The two properties are given the same curve but not the same clock —
-          // see dismissFadeDelayMs. The shrink starts on the press frame; the
-          // fade waits four frames so the capture is visibly the thing that
-          // moved before it is allowed to start disappearing.
-          transition:
-            `transform ${galleryEffects.dismissMs}ms ${galleryEffects.dismissEase}, ` +
-            `opacity ${galleryEffects.dismissMs - galleryEffects.dismissFadeDelayMs}ms ` +
-            `${galleryEffects.dismissEase} ${galleryEffects.dismissFadeDelayMs}ms`,
+          // One property, one clock. This carried a 1 → 0.8 recede as well, on
+          // the argument that a fade alone reads as the picture going dim rather
+          // than going away — and then a hot-reload bug kept it from drawing for
+          // a stretch of an afternoon, nobody missed it, and it went. What is
+          // left is doing the whole job: the capture is gone from state before
+          // this paints, so the only thing the exit still owes you is a beat in
+          // which the picture is visibly on its way out.
+          transition: `opacity ${galleryEffects.dismissMs}ms ${galleryEffects.dismissFadeEase}`,
         }}
       />
     </div>

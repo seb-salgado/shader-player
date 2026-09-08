@@ -30,9 +30,13 @@ export type EntranceFrom = -1 | 1
  * screen. It is one slot with a vertical rail beside it, and that rail runs
  * oldest to newest down the page — so the capture filling the slot is a
  * neighbour on a line with a direction on screen, and it enters from the side of
- * that line it actually lives on. A dozen pixels, not a viewport: the wheel
+ * that line it actually lives on. Tens of pixels, not a viewport: the wheel
  * hard-cuts between captures, so this slot has never scrolled and a delete is
  * not the place to start.
+ *
+ * Where the slide spends its first half underneath the departing capture, this
+ * one waits that capture out and then moves — see galleryEffects.stepDelayMs.
+ * A slide has a screen of travel to spare; 28px does not.
  *
  * It used to be a scale — the card behind coming forward — which was true while
  * the rail put the newest capture on top and the viewer could be read as a stack
@@ -61,7 +65,10 @@ export function useCaptureReplacement(entrance: Entrance) {
   const [arrival, setArrival] = useState<{ key: number; from: EntranceFrom } | null>(null)
   const [settled, setSettled] = useState(false)
 
-  const durationMs = entrance === "step" ? galleryEffects.stepMs : galleryEffects.replaceMs
+  const durationMs =
+    entrance === "step"
+      ? galleryEffects.stepMs + galleryEffects.stepDelayMs
+      : galleryEffects.replaceMs
 
   useEffect(() => {
     if (!arrival) return
@@ -93,7 +100,10 @@ export function useCaptureReplacement(entrance: Entrance) {
       ? settled
         ? {
             transform: "translateY(0)",
-            transition: `transform ${galleryEffects.stepMs}ms ${galleryEffects.dismissEase}`,
+            // The delay is the load-bearing part; see galleryEffects.stepDelayMs.
+            transition:
+              `transform ${galleryEffects.stepMs}ms ${galleryEffects.stepEase} ` +
+              `${galleryEffects.stepDelayMs}ms`,
           }
         // Pixels, not percentages: the travel is a statement about the rail's
         // axis, not a fraction of the capture — and the capture's height is

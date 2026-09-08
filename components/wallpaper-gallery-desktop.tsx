@@ -281,8 +281,8 @@ export function WallpaperGalleryDesktop({
    * The delete, on the press.
    *
    * The capture leaves state immediately; the two halves of the motion are drawn
-   * over the top of a list that has already changed. The outgoing frame recedes
-   * and fades from the app root (see CaptureDismissal) because removing the last
+   * over the top of a list that has already changed. The outgoing frame fades
+   * from the app root (see CaptureDismissal) because removing the last
    * capture closes the gallery on this same frame and the exit has to outlive
    * that unmount. The incoming one steps in here.
    *
@@ -303,8 +303,8 @@ export function WallpaperGalleryDesktop({
    * from there — and from below in the one case above, where the oldest was
    * deleted and the newer capture steps back into its place. Same sign
    * convention as the touch gallery, read against this surface's rail instead of
-   * that one's strip. See galleryEffects.stepPx for why it is a dozen pixels
-   * here where the touch gallery crosses a whole screen.
+   * that one's strip. See galleryEffects.stepPx for why it crosses 28px here
+   * where the touch gallery crosses a whole screen.
    */
   const handleDelete = () => {
     if (!currentCapture) return
