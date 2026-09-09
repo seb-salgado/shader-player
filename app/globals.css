@@ -4,91 +4,22 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  color-scheme: light;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --active: color-mix(in srgb, var(--foreground) 14%, var(--background));
-  --hover: color-mix(in srgb, var(--foreground) 6%, var(--background));
-  --focus-ring: var(--ring);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  /* The shutter, a touch off full-strength ink: black-on-white reads denser
-     than the white-on-dark it mirrors, so matching --foreground exactly makes
-     the light shutter the heavier of the two. */
-  --shutter-ink: oklch(0.28 0 0);
-  /* The shutter's fill in video mode, and the only chromatic thing in this
-     palette. Everything else here is `oklch(L 0 0)` — which is what makes a red
-     affordable rather than loud: it has no other hue to compete with, so it does
-     not have to shout to be the exception. Hue 27 is --destructive's own family
-     (27.325 / 25.723), so the app has one red rather than two that nearly match.
+  /* One palette. This app had a light mode and does not any more — the camera
+     took it. Every piece of chrome that floats over the artwork was already
+     pinned dark (the canvas wrapper, both control bars, the recording timer),
+     and the red record fill is what made the remaining light surfaces
+     indefensible: on a white bar the shutter's ring has to be near-black to
+     read as a ring, near-black around red reads as *hazard* rather than as
+     record, and the ring cannot be lightened out of the problem because it
+     doubles as the recording progress track. No camera ships a red record
+     button on white chrome, and now neither does this.
 
-     Chroma is held at 0.208 across both themes and only lightness moves, so this
-     is one red seen against two grounds rather than two different reds.
-
-     Light is pulled back to L 0.55, well under Apple's systemRed (~0.637), for
-     the same reason --shutter-ink stops short of --foreground: this side of the
-     palette is dark-on-light, which already reads denser. Full-strength red on a
-     near-white bar buzzes against the edge of the fill, and a shutter that
-     vibrates at rest is worse than one that is merely visible.
- */
-  --shutter-record: oklch(0.55 0.208 27);
-  --surface-1: #FAFAFA;
-  --surface-2: #FCFCFC;
-  --surface-3: #FFFFFF;
-  --surface-4: #FFFFFF;
-  --surface-5: #FFFFFF;
-  --surface-6: #FFFFFF;
-  --surface-7: #FFFFFF;
-  --surface-8: #FFFFFF;
-  /* The two squares of the transparency checkerboard, behind the alpha slider
-     and the colour tiles. Referenced from color-picker.tsx; they sit beside a
-     linear-gradient in the same `background-image`, and an unresolved var()
-     there is invalid at computed-value time — which drops the whole
-     declaration, gradient included, not just the checker layer. */
-  --checker-a: #FFFFFF;
-  --checker-b: #E3E3E3;
-  --shadow-color: rgb(0 0 0 / 0.06);
-  --shadow-1: 0 0 0 1px var(--shadow-color);
-  --shadow-2: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color);
-  --shadow-3: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color), 0 3px 3px -1.5px var(--shadow-color);
-  --shadow-4: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color), 0 3px 3px -1.5px var(--shadow-color), 0 6px 6px -3px var(--shadow-color);
-  --shadow-5: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color), 0 3px 3px -1.5px var(--shadow-color), 0 6px 6px -3px var(--shadow-color), 0 12px 12px -6px var(--shadow-color);
-  --shadow-6: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color), 0 3px 3px -1.5px var(--shadow-color), 0 6px 6px -3px var(--shadow-color), 0 12px 12px -6px var(--shadow-color), 0 24px 24px -12px var(--shadow-color);
-  --shadow-7: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color), 0 3px 3px -1.5px var(--shadow-color), 0 6px 6px -3px var(--shadow-color), 0 12px 12px -6px var(--shadow-color), 0 24px 24px -12px var(--shadow-color), 0 48px 48px -24px var(--shadow-color);
-  --shadow-8: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color), 0 3px 3px -1.5px var(--shadow-color), 0 6px 6px -3px var(--shadow-color), 0 12px 12px -6px var(--shadow-color), 0 24px 24px -12px var(--shadow-color), 0 48px 48px -24px var(--shadow-color), 0 96px 96px -48px var(--shadow-color);
-}
-
-.dark {
+     These are the values that were under `.dark`, moved up verbatim with their
+     reasoning intact. The `dark` class stays on <html> (app/layout.tsx) — not
+     for these tokens, which no longer need it, but because `@custom-variant
+     dark` above still gates the `dark:` utilities in components/ui. */
   color-scheme: dark;
+  --radius: 0.625rem;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
@@ -250,7 +181,6 @@
   --shadow-3: var(--shadow-3);
   --shadow-2: var(--shadow-2);
   --shadow-1: var(--shadow-1);
-  --color-shadow-color: var(--shadow-color);
 }
 
 @layer base {

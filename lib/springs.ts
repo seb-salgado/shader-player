@@ -53,10 +53,11 @@ export const spring = {
  * full-opacity frame: it read as a flicker with a smear, not a flash. Holding
  * full for ~3 frames and releasing on an ease-in inverts both mistakes.
  *
- * The colours mirror --background in app/globals.css rather than resolving it,
- * because the flash renders inside the canvas wrapper — which is pinned `dark`
- * at every width — but has to answer to the *page* theme instead. Keep them in
- * step with the two --background declarations.
+ * The colour mirrors --background in app/globals.css rather than resolving it.
+ * There used to be two of these, and a prop threaded down from the page to pick
+ * between them: the flash renders inside the canvas wrapper, which was pinned
+ * `dark` while the page around it could be light. With light mode gone there is
+ * one --background and one flash. Keep this in step with it.
  */
 export const captureFlash = {
   durationMs: 190,
@@ -70,8 +71,7 @@ export const captureFlash = {
    * before the next begins rather than everything moving at once.
    */
   holdEndMs: 85,
-  light: "oklch(1 0 0)",
-  dark: "oklch(0.145 0 0)",
+  color: "oklch(0.145 0 0)",
 } as const;
 
 /**

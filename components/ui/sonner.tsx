@@ -1,6 +1,5 @@
 'use client'
 
-import { useTheme } from 'next-themes'
 import { Toaster as Sonner, ToasterProps } from 'sonner'
 
 /**
@@ -14,19 +13,17 @@ import { Toaster as Sonner, ToasterProps } from 'sonner'
  * are the two tokens matched below.
  */
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
 
   return (
     <Sonner
-      theme={theme as ToasterProps['theme']}
+      theme="dark"
       className="toaster group"
       style={
         {
-          // --surface-3, not --popover. They agree in light — both white — but
-          // in dark --popover is near-black against the surface ladder's #252525,
-          // so the toast came out markedly darker than the bar it is meant to
-          // match. The ladder is what the rest of the app's raised chrome is
-          // built on; the toast belongs on it too.
+          // --surface-3, not --popover. --popover is near-black against the
+          // surface ladder's #252525, so the toast came out markedly darker than
+          // the bar it is meant to match. The ladder is what the rest of the
+          // app's raised chrome is built on; the toast belongs on it too.
           '--normal-bg': 'var(--surface-3)',
           '--normal-text': 'var(--popover-foreground)',
           // The edge comes from the shadow below, which carries its own hairline

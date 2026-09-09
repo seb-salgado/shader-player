@@ -135,13 +135,11 @@ export function MobileNav({
   return (
     <>
       {/* An opaque strip in the normal flow, so the shader ends where the
-          controls begin rather than running underneath them.
-          `dark` scopes the dark palette to this subtree regardless of the page
-          theme (the variant is `&:is(.dark *)`), so the chrome mattes the
-          artwork like a gallery wall instead of competing with it — and the
-          controls below stay on semantic tokens rather than hardcoded colours. */}
+          controls begin rather than running underneath them. It carried a `dark`
+          of its own until the app became dark-only — the chrome mattes the
+          artwork like a gallery wall, and now every surface does. */}
       <div
-        className="dark md:hidden shrink-0 bg-background px-6 pt-4"
+        className="md:hidden shrink-0 bg-background px-6 pt-4"
         style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
       >
         {/* Two rows: the shutter owns the top one, so it stays on the screen's

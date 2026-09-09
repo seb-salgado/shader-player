@@ -344,24 +344,22 @@ export default function Home() {
       //
       // This overrides the rendered palette, not the stored preference: a theme
       // chosen on desktop is still there on return.
-      // `bg-background` rides along with it, and it is not decoration. Once the
-      // canvas scales down it stops covering its own box, and the gutters either
-      // side of it fall through to whatever is behind — which without this is
-      // <body>, painted from the *page* theme. A phone on a light system theme
-      // would frame the artwork in white.
+      // `bg-background` is not decoration. Once the canvas scales down it stops
+      // covering its own box, and the gutters either side of it fall through to
+      // whatever is behind — which without this is <body>. It used to carry a
+      // `dark` beside it, back when <body> could be painted from a light page
+      // theme and a phone would have framed the artwork in white.
       className={cn(
         "h-screen w-screen flex flex-col md:flex-row overflow-hidden",
-        isMobile && "dark bg-background",
+        isMobile && "bg-background",
       )}
       style={{ height: "100dvh" } as CSSProperties}
     >
       {/* Shader Canvas.
           Two elements on purpose: the rounded corners reveal whatever is painted
-          *behind* the clipped wrapper, so the surround carries the colour. `dark`
-          scopes the dark palette here alone — it cannot go on the outer flex
-          container without dragging the desktop sidebar into it too. Transparent
-          from md up, where the canvas is square and fills its box. */}
-      <div ref={canvasBoxRef} className="dark flex-1 min-h-0 bg-background md:bg-transparent">
+          *behind* the clipped wrapper, so the surround carries the colour.
+          Transparent from md up, where the canvas is square and fills its box. */}
+      <div ref={canvasBoxRef} className="flex-1 min-h-0 bg-background md:bg-transparent">
         {/* The unscaled box, and the reason there are three elements here rather
             than the two there used to be. It is the frame of reference for
             anything that must keep its size while the viewfinder steps back. */}
@@ -399,7 +397,7 @@ export default function Home() {
                 rounded corners for free — and inside the scale, which is right:
                 the flash is the frame blinking, so it is whatever size the frame
                 currently is. */}
-            {flashKey > 0 && <CaptureFlash key={flashKey} isMobile={isMobile} />}
+            {flashKey > 0 && <CaptureFlash key={flashKey} />}
           </div>
 
           {/* The timecode, in the viewfinder rather than over the page — the same

@@ -34,10 +34,15 @@ interface FloatingToolbarProps {
  * Desktop's floating control bar: every shader and the shutter, permanently on
  * screen, with captures landing in the slot on its left.
  *
- * Unlike the rest of the chrome that floats over the artwork, this one is *not*
- * pinned to the dark palette — it follows the page theme, so it must stay a
- * sibling of the canvas rather than a child of the `dark`-scoped wrapper in
- * app/page.tsx.
+ * Dark, like everything else — but it is worth knowing that this bar is why.
+ * It was the last surface in the app that followed a page theme, and the red
+ * record fill is what made that untenable: see the note on the palette in
+ * app/globals.css. It briefly carried a `dark` of its own before light mode was
+ * dropped outright, and needs none now.
+ *
+ * Still a *sibling* of the canvas rather than a child of its wrapper, which is
+ * unrelated to colour — it is centred on the window and has to overhang the
+ * sidebar.
  */
 export function FloatingToolbar({
   shaderId,

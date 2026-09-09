@@ -43,15 +43,17 @@ export const SURFACE_SHADOW: Record<number, string> = {
  * shadow system as everything else. Both spreads stay negative, which keeps the
  * shadow tucked under the cell: a thumb resting on the track, not floating.
  *
- * Dark also keeps a top bevel: on a dark track the fill alone is a small step,
- * and the inset highlight is what says "top edge" without outlining the shape.
+ * The top bevel is the third layer: on a dark track the fill alone is a small
+ * step, and the inset highlight is what says "top edge" without outlining the
+ * shape. It used to be a `dark:` override on top of a lighter, bevel-less pair
+ * for light mode; with the app dark-only that pair was unreachable, so this is
+ * the dark one promoted to the base.
  */
 export function raisedThumb(substrate: number): string {
   const level = Math.min(8, Math.round(Math.max(1, substrate) + 4));
   return [
     SURFACE_BG[level],
-    "shadow-[0_1px_1px_-0.5px_var(--shadow-color),0_3px_3px_-1.5px_var(--shadow-color)]",
-    "dark:shadow-[inset_0_1px_0_0_var(--dm-hi-mid),0_1px_1px_-0.5px_var(--dm-drop),0_3px_3px_-1.5px_var(--dm-drop)]",
+    "shadow-[inset_0_1px_0_0_var(--dm-hi-mid),0_1px_1px_-0.5px_var(--dm-drop),0_3px_3px_-1.5px_var(--dm-drop)]",
   ].join(" ");
 }
 

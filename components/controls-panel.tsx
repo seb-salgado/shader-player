@@ -187,7 +187,7 @@ export function ControlsPanel({
           // opaque half-screen plane that dissolves in place is the thing being
           // replaced — and a sheet that faded *while* it travelled would show
           // the canvas through itself on the way.
-          className="dark pointer-events-none fixed inset-x-0 bottom-0 z-50 text-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-50 text-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none"
           style={{
             // How far the panel can ever reach — not where it rests. The split is
             // controlsSplit.openFraction, applied to the sheet below as a

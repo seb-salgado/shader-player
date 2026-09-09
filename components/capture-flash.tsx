@@ -1,18 +1,7 @@
 "use client"
 
 import { motion, useReducedMotion } from "framer-motion"
-import { useTheme } from "next-themes"
 import { captureFlash } from "@/lib/springs"
-
-interface CaptureFlashProps {
-  /**
-   * Passed in rather than read from useIsMobile here, because the answer this
-   * component needs isn't "is the viewport narrow" but "which palette is on
-   * screen" — and mobile is pinned dark whatever the stored preference says.
-   * See the note on the root container in app/page.tsx.
-   */
-  isMobile: boolean
-}
 
 /**
  * The shutter blink, over the viewfinder alone.
@@ -24,21 +13,18 @@ interface CaptureFlashProps {
  * Lives inside the canvas's rounded, clipping wrapper, so it picks up the
  * artwork's exact corners without restating them.
  */
-export function CaptureFlash({ isMobile }: CaptureFlashProps) {
+export function CaptureFlash() {
   const prefersReducedMotion = useReducedMotion()
-  const { resolvedTheme } = useTheme()
 
   // A luminance jump is exactly what reduced motion asks us to drop, and the
   // shutter still has its click while the thumbnail still appears.
   if (prefersReducedMotion) return null
 
-  const isDark = isMobile || resolvedTheme === "dark"
-
   return (
     <motion.div
       aria-hidden
       className="absolute inset-0 z-10 pointer-events-none"
-      style={{ backgroundColor: isDark ? captureFlash.dark : captureFlash.light }}
+      style={{ backgroundColor: captureFlash.color }}
       initial={{ opacity: 0 }}
       animate={{ opacity: [0, 1, 1, 0] }}
       transition={{

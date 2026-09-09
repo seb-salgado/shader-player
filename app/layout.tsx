@@ -7,7 +7,6 @@ import "./globals.css"
 // root entry point, not from the client component that renders the carousel.
 import "@blossom-carousel/react/style.css"
 import { AudioInitializer } from "@/components/audio-initializer"
-import { ThemeProvider } from "@/components/theme-provider"
 import { SIDEBAR_WIDTH_BOOT_SCRIPT } from "@/lib/sidebar-width"
 import { INPUT_MODALITY_BOOT_SCRIPT } from "@/lib/input-modality"
 
@@ -40,7 +39,15 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // `dark` is static rather than provider-driven: this app is dark-only, and
+    // the class is here for `@custom-variant dark` in app/globals.css (the
+    // `dark:` utilities in components/ui still read it) rather than for the
+    // palette, which is now plain `:root`.
+    //
+    // suppressHydrationWarning stays, but no longer for next-themes — the two
+    // boot scripts below both write to document.documentElement before React
+    // sees it.
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className={spaceMono.variable}>
         {/* First thing in the body so it executes before the markup below is
             parsed, which is what lets the stored sidebar width be in place for
@@ -50,10 +57,8 @@ export default function RootLayout({
             before hydration, and it is the one that decides whether the gallery
             opens with a ring around its close button. */}
         <script dangerouslySetInnerHTML={{ __html: INPUT_MODALITY_BOOT_SCRIPT }} />
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AudioInitializer />
-          {children}
-        </ThemeProvider>
+        <AudioInitializer />
+        {children}
       </body>
     </html>
   )

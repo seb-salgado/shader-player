@@ -96,10 +96,8 @@ export const ControlsSidebar = memo(function ControlsSidebar({
             />
           ))}
 
-          {/* Appearance lives in the credits row now, as a single cycling icon
-              rather than its own labelled section. */}
           <div className="mt-auto">
-            <CreditsFooter showAppearanceToggle />
+            <CreditsFooter />
           </div>
         </div>
       </div>
