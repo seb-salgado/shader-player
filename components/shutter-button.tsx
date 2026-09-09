@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, type CSSProperties } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import {
   motion,
   useMotionValue,
@@ -10,6 +10,7 @@ import {
 } from "framer-motion"
 import { spring } from "@/lib/springs"
 import { cn } from "@/lib/utils"
+import type { CaptureMode } from "./mode-tabs"
 
 /**
  * Ring, gap, fill — the shutter every camera app draws, at the two sizes this
@@ -45,8 +46,17 @@ const RING_FADE_MS = 120
 /** The track's weight against the arc's. Opacity, not hue — there is no hue here. */
 const TRACK_OPACITY = 0.3
 
+/** How far the fill retreats under a press. Matches the `scale-90` photo mode still uses. */
+const PRESS_SCALE = 0.9
+
 interface ShutterButtonProps {
   onPress: () => void
+  /**
+   * Which press this is. Image mode's is momentary — the fill dips and returns.
+   * Video mode's is a toggle: the same press that dips the fill also changes
+   * what the fill *is*, so the two cannot be separate animations. See the fill.
+   */
+  mode: CaptureMode
   size?: keyof typeof SHUTTER_SIZES
   /** Drives the glyph and the ring. */
   isRecording?: boolean
@@ -67,7 +77,7 @@ interface ShutterButtonProps {
  * hardcoded `border-foreground` it replaced; only the light desktop shutter
  * takes the token's deliberate pullback from full-strength ink.
  *
- * **The press scales the fill, not the button.** On a real camera the ring is
+ * **The press shrinks the fill, not the button.** On a real camera the ring is
  * part of the body and only the button travels; scaling both would read as the
  * whole shutter assembly shrinking into the bar.
  *
@@ -90,6 +100,7 @@ interface ShutterButtonProps {
  */
 export function ShutterButton({
   onPress,
+  mode,
   size = "desktop",
   isRecording = false,
   progress,
@@ -135,6 +146,43 @@ export function ShutterButton({
     ? { duration: 0 }
     : { duration: RING_FADE_MS / 1000, ease: "linear" as const }
 
+  /**
+   * Video mode's press, tracked in React so it can be a target of the same
+   * spring the glyph uses. One re-render per press — the per-frame values in
+   * here are MotionValues and still never reach React.
+   */
+  const isToggle = mode === "video"
+  const [isPressed, setIsPressed] = useState(false)
+  const pressHandlers = isToggle
+    ? {
+        onPointerDown: () => setIsPressed(true),
+        onPointerUp: () => setIsPressed(false),
+        // The button does not capture the pointer, so a release outside it never
+        // reaches onPointerUp. Leaving is the release, as far as the fill knows.
+        onPointerLeave: () => setIsPressed(false),
+        onPointerCancel: () => setIsPressed(false),
+      }
+    : undefined
+
+  /**
+   * One number for the fill, whatever is acting on it.
+   *
+   * The press multiplies the glyph's own size rather than scaling the element,
+   * so a press and a state change are the same animation on the same property
+   * and cannot disagree about where the fill is. Pressing record therefore runs
+   * 36 → 32.4 → 15 and never turns around; the version that scaled went
+   * 36 → 32.4 → *36* → 15, because releasing the press and becoming the stop
+   * glyph were two systems with no knowledge of each other.
+   *
+   * The radius is multiplied too, which is what a `scale` would have done for
+   * free — and the reason to pay for it by hand is the SLOT_RADIUS lesson in
+   * lib/toolbar-geometry.ts: with the box animated, a scaled corner would have
+   * to be pre-compensated by a number nobody could explain later.
+   */
+  const press = isPressed ? PRESS_SCALE : 1
+  const fillSize = (isRecording ? geometry.stop : geometry.fill) * press
+  const fillRadius = (isRecording ? geometry.stopRadius : geometry.fill / 2) * press
+
   const radius = (geometry.size - geometry.ring) / 2
   const label = ariaLabel ?? (isRecording ? "Stop recording" : "Capture frame")
 
@@ -142,6 +190,7 @@ export function ShutterButton({
     <button
       type="button"
       onClick={onPress}
+      {...pressHandlers}
       aria-label={label}
       // Unpositioned, like CaptureThumbnail: the bar around it does the layout.
       className={cn(
@@ -219,25 +268,34 @@ export function ShutterButton({
         />
       </svg>
 
-      {/* Circle to rounded square, and the *box* is animated rather than a
-          scale — the SLOT_RADIUS lesson in lib/toolbar-geometry.ts: a scale
-          would paint the radius scaled too, so the corner would have to be
-          pre-compensated by a number nobody could explain later. Safe as layout
-          because the parent is a fixed box with flex centring, so nothing
-          outside this button can move.
+      {/* Circle to rounded square, animated as a box. Safe as layout because the
+          parent is a fixed box with flex centring, so nothing outside this
+          button can move.
 
-          The press affordance stays a CSS transform on the same element, which
-          does not collide: Framer is driving width, height and border-radius
-          here, not transform. */}
+          Image mode keeps the CSS press it has always had. Note that
+          `group-active:scale-90` compiles to the independent `scale` property in
+          Tailwind v4, which the `transform` transition beside it does not cover
+          — so that press is a hard cut in both directions rather than the 100ms
+          it reads as. Left alone deliberately; it is what image capture ships
+          today, and changing it is a separate decision from this one. */}
       <motion.span
-        className="relative block bg-current group-active:scale-90 [transition:transform_100ms_ease-out] motion-reduce:transition-none"
+        className={cn(
+          "relative block bg-current",
+          !isToggle &&
+            "group-active:scale-90 [transition:transform_100ms_ease-out] motion-reduce:transition-none",
+        )}
         initial={false}
-        animate={{
-          width: isRecording ? geometry.stop : geometry.fill,
-          height: isRecording ? geometry.stop : geometry.fill,
-          borderRadius: isRecording ? geometry.stopRadius : geometry.fill / 2,
-        }}
-        transition={prefersReducedMotion ? { duration: 0 } : spring.moderate}
+        animate={{ width: fillSize, height: fillSize, borderRadius: fillRadius }}
+        // Going down under the finger is a response and should be quick; coming
+        // back out is the glyph settling, and gets the tier everything else that
+        // settles in this app uses.
+        transition={
+          prefersReducedMotion
+            ? { duration: 0 }
+            : isPressed
+              ? spring.fast
+              : spring.moderate
+        }
       />
     </button>
   )

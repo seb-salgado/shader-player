@@ -151,6 +151,7 @@ export function MobileNav({
           <ShutterButton
             size="mobile"
             onPress={onCapture}
+            mode={mode}
             isRecording={isRecording}
             progress={recordingProgress}
             className="transition-[opacity,transform]"

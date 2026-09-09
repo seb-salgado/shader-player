@@ -144,15 +144,18 @@ export function useVideoRecorder({ onComplete }: UseVideoRecorderOptions) {
       }
 
       /**
-       * The clock starts here rather than on the click.
+       * The *clock* starts here rather than on the click.
        *
        * MediaRecorder.start() returns before the first frame has been encoded,
        * so timing from the press makes durationMs overstate the clip and starts
        * the ring filling against footage that does not exist yet.
+       *
+       * The *state* deliberately does not wait for this — see below. This
+       * callback lands 55–65ms after the press in practice, which is nothing for
+       * a duration and an eternity for a button.
        */
       recorder.onstart = () => {
         startedAtRef.current = performance.now()
-        setState("recording")
 
         const tick = () => {
           const elapsed = performance.now() - startedAtRef.current
@@ -191,6 +194,22 @@ export function useVideoRecorder({ onComplete }: UseVideoRecorderOptions) {
         // No timeslice: one blob at the end. There is nothing worth salvaging
         // from a partial clip of fifteen seconds or less.
         recorder.start()
+        /**
+         * The shutter acknowledges the press here, not in `onstart`.
+         *
+         * Waiting for the encoder put 55–65ms between letting go of the button
+         * and anything happening to it — which the shutter spent releasing its
+         * press affordance, so the fill sprang back to full size and only then
+         * collapsed into the stop glyph. The press looked like it had bounced
+         * off.
+         *
+         * Nothing is being claimed early: `recorder.start()` has returned, the
+         * recorder's own state is already "recording", and the throw below is
+         * the only way it does not record — in which case state was never set.
+         * What is deferred is the clock, which is the only thing that actually
+         * needed the encoder.
+         */
+        setState("recording")
       } catch {
         recorderRef.current = null
         streamRef.current = null

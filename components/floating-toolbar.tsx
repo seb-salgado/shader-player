@@ -192,6 +192,7 @@ export function FloatingToolbar({
 
       <ShutterButton
         onPress={onCapture}
+        mode={mode}
         isRecording={isRecording}
         progress={recordingProgress}
       />
