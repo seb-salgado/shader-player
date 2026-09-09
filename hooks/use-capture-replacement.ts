@@ -18,57 +18,56 @@ let nextKey = 0
 export type EntranceFrom = -1 | 1
 
 /**
- * How the capture taking a deleted one's place gets into the slot.
+ * The axis the arriving capture crosses — the only thing that differs between
+ * the two galleries.
  *
- * `slide` is the touch gallery, and it is true there: the captures lie side by
- * side in a horizontal scroller, the neighbour genuinely is one screen out, and
- * swiping between them is the whole interaction. A capture crossing the screen
- * is the strip stepping, which is a thing the user has done by hand many times
- * before they ever delete anything.
+ * `x` is the touch strip: the captures lie side by side in a horizontal
+ * scroller, the neighbour genuinely is one screen out, and swiping between them
+ * is the whole interaction.
  *
- * `step` is the desktop viewer, which is not a strip and so does not travel a
- * screen. It is one slot with a vertical rail beside it, and that rail runs
- * oldest to newest down the page — so the capture filling the slot is a
- * neighbour on a line with a direction on screen, and it enters from the side of
- * that line it actually lives on. Tens of pixels, not a viewport: the wheel
- * hard-cuts between captures, so this slot has never scrolled and a delete is
- * not the place to start.
+ * `y` is the desktop viewer, whose rail runs oldest to newest *down* the page —
+ * so the capture filling the slot is a neighbour on a vertical line, and it
+ * comes in over the top edge because that is where it lives.
  *
- * Where the slide spends its first half underneath the departing capture, this
- * one waits that capture out and then moves — see galleryEffects.stepDelayMs.
- * A slide has a screen of travel to spare; 28px does not.
+ * Same slide either way — same travel, same duration band, different curve,
+ * because the desktop slot never scrolls and so takes an entrance rather than a
+ * crossing. What each one crosses is a
+ * full slot — 100% of the element's own box — so the arriving capture is off
+ * screen at the start and there is never a moment of it half-parked in the
+ * letterbox. See galleryEffects.replaceYMs for why the vertical one is longer.
  *
- * It used to be a scale — the card behind coming forward — which was true while
- * the rail put the newest capture on top and the viewer could be read as a stack
- * of photographs. The rail is a timeline now, and on a timeline nothing is
- * behind anything. See galleryEffects.stepPx.
+ * This replaced a 28px "step" on desktop, which had the axis and the direction
+ * right and the distance wrong: too small to be seen under the ghost, so it had
+ * to be delayed until the ghost was gone, which made a delete two beats instead
+ * of one.
  */
-export type Entrance = "slide" | "step"
+export type Axis = "x" | "y"
 
 /**
  * The capture that takes a deleted one's place, entering the slot it left.
  *
- * Both galleries drive their entrance off this, on different elements and on
- * different axes: the desktop viewer translates the wrapper around the single
- * image it renders, the touch gallery translates the card of the slide the
- * scroller has just been jumped onto. What they share is the awkward part — a
- * transition needs a *from* to leave, and setting the offset and the target in
- * one commit gives it nothing to interpolate between, so the capture simply
- * appears in place. Two commits: the first paints the from-state with no
- * transition on it at all, the second lets it come home.
+ * Both galleries drive their entrance off this, on different elements: the
+ * desktop viewer translates the wrapper around the single image it renders, the
+ * touch gallery translates the card of the slide the scroller has just been
+ * jumped onto. What they share is the awkward part — a transition needs a *from*
+ * to leave, and setting the offset and the target in one commit gives it nothing
+ * to interpolate between, so the capture simply appears in place. Two commits:
+ * the first paints the from-state with no transition on it at all, the second
+ * lets it come home.
  *
  * A transition and not a keyframe, deliberately. Delete is a button you can hit
  * twice in 300ms, and keyframes restart from zero where a transition retargets
  * from wherever the capture had got to.
  */
-export function useCaptureReplacement(entrance: Entrance) {
+export function useCaptureReplacement(axis: Axis) {
   const [arrival, setArrival] = useState<{ key: number; from: EntranceFrom } | null>(null)
   const [settled, setSettled] = useState(false)
 
-  const durationMs =
-    entrance === "step"
-      ? galleryEffects.stepMs + galleryEffects.stepDelayMs
-      : galleryEffects.replaceMs
+  const durationMs = axis === "y" ? galleryEffects.replaceYMs : galleryEffects.replaceXMs
+  // Different curves, and not for the axis's sake: the touch card is a strip
+  // stepping across the screen, the desktop capture is entering a slot that
+  // never scrolls. See galleryEffects.replaceYEase.
+  const ease = axis === "y" ? galleryEffects.replaceYEase : galleryEffects.replaceXEase
 
   useEffect(() => {
     if (!arrival) return
@@ -84,39 +83,30 @@ export function useCaptureReplacement(entrance: Entrance) {
   }, [arrival, durationMs])
 
   /**
-   * `from` is the side the capture comes from, and both entrances have one now.
-   * The reveal this replaced did not: it was the card behind coming forward,
-   * which is the same move whichever capture fills the slot — and that was
-   * exactly its problem once the rail started running in time order.
+   * `from` is the side the capture comes from. The reveal this replaced on
+   * desktop did not have one: it was the card behind coming forward, which is
+   * the same move whichever capture fills the slot — and that was exactly its
+   * problem once the rail started running in time order.
    */
   const beginReplacement = useCallback((from: EntranceFrom = -1) => {
     setSettled(false)
     setArrival({ key: nextKey++, from })
   }, [])
 
+  // Percentages, not pixels: the travel is one slot, and the element that has to
+  // cross it is the one being sized — the slide on touch, the viewer box on
+  // desktop. Nothing here has to know how big either of them is.
+  const translate = (offset: number) =>
+    axis === "y" ? `translateY(${offset}%)` : `translateX(${offset}%)`
+
   const replacementStyle: CSSProperties | undefined = !arrival
     ? undefined
-    : entrance === "step"
-      ? settled
-        ? {
-            transform: "translateY(0)",
-            // The delay is the load-bearing part; see galleryEffects.stepDelayMs.
-            transition:
-              `transform ${galleryEffects.stepMs}ms ${galleryEffects.stepEase} ` +
-              `${galleryEffects.stepDelayMs}ms`,
-          }
-        // Pixels, not percentages: the travel is a statement about the rail's
-        // axis, not a fraction of the capture — and the capture's height is
-        // whatever the letterbox made it, which has nothing to do with it.
-        : { transform: `translateY(${arrival.from * galleryEffects.stepPx}px)`, transition: "none" }
-      : settled
-        ? {
-            transform: "translateX(0)",
-            transition: `transform ${galleryEffects.replaceMs}ms ${galleryEffects.replaceEase}`,
-          }
-        // Percentages, not pixels: a slide is always exactly one screen of
-        // travel, and the element that has to cross it is sized by its slide.
-        : { transform: `translateX(${arrival.from * 100}%)`, transition: "none" }
+    : settled
+      ? {
+          transform: translate(0),
+          transition: `transform ${durationMs}ms ${ease}`,
+        }
+      : { transform: translate(arrival.from * 100), transition: "none" }
 
   return { replacing: arrival !== null, replacementStyle, beginReplacement }
 }

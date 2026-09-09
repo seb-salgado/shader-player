@@ -106,14 +106,21 @@ export const galleryMorph = {
  * and these captures are soft gradients with none, so it came apart into static
  * rather than into pieces.
  *
- * The two galleries no longer share an entrance, and that is the correction this
- * block exists to record. Both used to: one full screen of horizontal travel,
- * out of the same hook. It is true on touch, where the captures lie side by side
- * in a scroller and the neighbour really is one screen out. It was never true on
- * desktop, which has a vertical rail and a viewer that hard-cuts between
- * captures — so the replacement crossed in from an axis that surface does not
- * have, from off screen, while the very capture it claimed to be was sitting
- * visible in the rail the whole time. See stepPx.
+ * The two galleries share an entrance again, and the axis is the whole of what
+ * separates them.
+ *
+ * They shared one before, and that one was wrong: a full screen of *horizontal*
+ * travel on both surfaces. True on touch, where the captures lie side by side in
+ * a scroller and the neighbour really is one screen out; never true on desktop,
+ * where the rail is vertical and the replacement crossed in from an axis that
+ * surface does not have. The correction that followed cut the desktop travel to
+ * 28px on the right axis — and bought the direction at the price of the motion.
+ * A step that small has to wait out the exit to be seen at all, so a delete read
+ * as a picture dissolving and then, separately, a nudge: two beats, and the
+ * second one small enough to miss.
+ *
+ * So: one slide, one curve, read against each surface's own axis — across on
+ * touch, down the rail on desktop. Only the duration differs; see replaceYMs.
  */
 export const galleryEffects = {
   /** The fade on the capture that has already left state. */
@@ -140,97 +147,8 @@ export const galleryEffects = {
    */
   dismissFadeEase: "cubic-bezier(0.4, 0, 1, 1)",
   /**
-   * The step's curve — an ease-out, because it is a thing settling into an empty
-   * slot rather than crossing the screen: half the travel in the first quarter
-   * of the duration, then a deceleration you can follow all the way in.
-   *
-   * It was the exit's curve too, until the exit stopped moving.
-   */
-  stepEase: "cubic-bezier(0.23, 1, 0.32, 1)",
-  /**
-   * The neighbour stepping into the slot, on desktop — a short travel on the
-   * rail's own axis.
-   *
-   * Not a slide, because the desktop viewer is not a strip: it is one slot with
-   * a vertical rail of thumbnails beside it, and the wheel steps between
-   * captures on a hard cut, so nothing has ever travelled the width of that
-   * slot. But it is not directionless either, and that is the correction. The
-   * rail runs oldest to newest down the page, so a delete has something to say:
-   * what fills the slot is the capture *above* the one you deleted — below it in
-   * the one case where you deleted the oldest and there is nothing above — and
-   * entering from that side is the whole of what this animation is for.
-   *
-   * The 0.98 scale it replaces said something else: the card behind coming
-   * forward as the one in front falls back. That was true while the rail put the
-   * newest capture on top and the viewer read as a stack of photographs. On a
-   * timeline nothing is behind anything, and a capture arriving out of z while
-   * the ring beside it lands a frame further *up* is two different stories about
-   * one delete.
-   *
-   * 28px, up from the 12 this shipped with. 12 was measured running, correctly
-   * directed, and invisible — and the distance was only half of why. See
-   * stepDelayMs for the other half. 28 is what is left once the travel has to
-   * read against a full-screen photograph that is itself moving 20% of its own
-   * height; past about 40 the slot starts to look like it scrolled, which it
-   * never does, because the wheel hard-cuts between captures and a delete is not
-   * the place to start implying otherwise.
-   *
-   * Pixels rather than a fraction of the capture, because what it is a step of
-   * is a rail frame — a fixed 56px pitch, whatever shape the capture is.
-   *
-   * No opacity on it, which is unchanged and for the unchanged reason: these
-   * captures are near-identical soft gradients, and fading one up over another
-   * is how you get mush instead of a replacement.
-   */
-  stepPx: 28,
-  /**
-   * 200ms of ease-out, which now buys what it says it buys: the step runs in the
-   * clear, so its shape is a settle rather than a thing happening behind a
-   * curtain. Half the travel lands in the first 50ms and the rest decelerates
-   * into place.
-   */
-  stepMs: 200,
-  /**
-   * The step waits for the exit to get out of the way. This is the number the
-   * first two attempts at this animation were missing.
-   *
-   * Both of them ran the arrival *under* the departure, on the reasoning that
-   * one gesture should not be two events. What that ignores is what the exit
-   * actually is: a full-screen copy of very nearly the same picture lying
-   * directly over the slot, fading — and, at the time, shrinking 20% of its own
-   * height as well. It did not merely occlude the arrival, it *masked* it. The
-   * eye follows the biggest thing moving, and 28px behind a 20% scale is not the
-   * biggest thing moving. A 12px reveal was invisible for this reason; so was
-   * 28px, and so would 28px have been on any curve, because there was no window
-   * in which the arriving capture was the only thing in motion.
-   *
-   * The recede has since gone, which softens the masking without removing the
-   * reason: a picture dissolving over the slot is still something to wait out.
-   *
-   * 140ms is where that window opens. It was measured against the exit as it
-   * stood then — a recede all but finished by 128ms, a fade past half by 153 —
-   * and it survives that exit losing its recede: an ease-in fade over dismissMs
-   * still has most of itself left at 140, and what the step waits out now is a
-   * picture dissolving rather than a picture moving. It costs a delete about a
-   * seventh of a second, and it is the difference between motion that is
-   * technically present and motion anybody can see.
-   *
-   * The touch gallery needs none of this and gets none: its arrival crosses a
-   * whole screen, so it is still travelling long after the ghost has finished,
-   * and it can afford to spend its first half underneath — which is exactly what
-   * replaceMs works out there.
-   */
-  stepDelayMs: 140,
-  /**
    * The neighbour arriving in the deleted capture's place on *touch* — a full
    * slide, one screen wide, from the side of the strip it actually lives on.
-   *
-   * Touch only, and it stays a slide: the captures really do lie side by side in
-   * a scroller here, so the strip stepping is the one true statement a delete on
-   * this surface can make. The desktop viewer has a side to come from — its rail
-   * is vertical and runs oldest first — but no screen of travel to cross, so it
-   * takes 28px on that axis instead — the same 220ms and the same curve, since
-   * both arrive out from under the same ghost; see stepPx.
    *
    * The number was 300 and the curve was the iOS full-screen push — nearly all
    * the distance in the first half, then a long quiet settle — on the argument
@@ -242,22 +160,76 @@ export const galleryEffects = {
    * held for four frames before it began, the ghost was still at opacity 1.00 at
    * 98ms — by which point the arriving card had already travelled 156 of its
    * 375px behind it. The ease-in it fades on now holds nearly as long without
-   * being asked to. Every frame the old curve
-   * spent being expressive was a frame nobody could see. What was visible was
-   * the remainder — 23px of travel over the last 150ms — so a delete ended on a
-   * drift, and the exit had been finished since 189ms.
+   * being asked to. Every frame the old curve spent being expressive was a frame
+   * nobody could see. What was visible was the remainder — 23px of travel over
+   * the last 150ms — so a delete ended on a drift, and the exit had been
+   * finished since 189ms.
    *
-   * So: the same 220ms as the exit, and the two halves end together. And an
-   * ease-in-out rather than an ease-out, which is the documented curve for
-   * something moving across the screen rather than entering it — this card is a
-   * strip stepping, not an element appearing. Its slow start is not a cost here,
-   * because the slow start is the part behind the ghost, and the responsiveness
-   * an ease-out would have bought is already paid for by the exit, which begins
-   * moving on the press frame. Half the distance is still unspent at 110ms,
-   * which is where the ghost finally lets go of it.
+   * So: the same 220ms as the exit, and the two halves end together.
    */
-  replaceMs: 220,
-  replaceEase: "cubic-bezier(0.77, 0, 0.175, 1)",
+  replaceXMs: 220,
+  /**
+   * The same slide on desktop, down the rail's axis instead of across the strip.
+   *
+   * Longer, because the slot is: the viewer is the window less 32px of inset, so
+   * the arrival crosses something like 850px where the phone crosses 375. Held
+   * at 220ms that is four thousand pixels a second, which stops reading as a
+   * picture sliding and starts reading as a cut with a smear on it.
+   *
+   * 340ms is 220 × √2.4 — duration scaled by the *root* of the distance rather
+   * than by the distance. Matching the phone's pixels-per-second outright would
+   * be 500ms+, and it would feel slower than the phone rather than the same:
+   * a longer travel is read as one movement, not as a proportionally longer one,
+   * so the eye wants somewhat more time and nothing like linearly more. It is
+   * over the 300ms UI ceiling on purpose — this is drawer-sized travel, and the
+   * drawer band is where it belongs.
+   *
+   * The consequence worth knowing: the exit finishes at 220 and the arrival runs
+   * on to 340, so the last 120ms of a desktop delete is the capture that stayed,
+   * alone and still settling. That is the right thing for the eye to end on, and
+   * it is the one place these two surfaces genuinely differ in shape rather than
+   * in axis.
+   *
+   * No opacity on it, on either surface: these captures are near-identical soft
+   * gradients, and fading one up over another is how you get mush instead of a
+   * replacement. The arriving picture is opaque for the whole crossing.
+   */
+  replaceYMs: 340,
+  /**
+   * Touch: an ease-in-*out* rather than the ease-out an arrival would normally
+   * take — because this is not an element appearing, it is a strip stepping, and
+   * that is the documented curve for something crossing the screen. Its slow
+   * start is free here: the first third of the crossing happens under a
+   * full-screen ghost that began fading on the press frame, so the
+   * responsiveness an ease-out would have bought is already paid for.
+   */
+  replaceXEase: "cubic-bezier(0.77, 0, 0.175, 1)",
+  /**
+   * Desktop: the house ease-out, and the axis is not why they differ — the kind
+   * of movement is.
+   *
+   * The touch card is a strip stepping, because that strip is a scroller the
+   * user drags by hand. The desktop slot is not: the wheel hard-cuts between
+   * captures and nothing has ever travelled it. So what happens here is an
+   * element *entering* an empty slot, which takes an ease-out on any reading.
+   *
+   * It is also what the rest of the app uses — see the note at the top of this
+   * file. Sharing the in-out across both surfaces made this the only ease-in-out
+   * in the project, bought with a curve the surface did not want.
+   *
+   * The measured payoff is not the peak velocity, which barely moves — 12,400
+   * px/s to 10,900. It is *where* the speed sits. The in-out put 550 of the
+   * 853px into the 80ms either side of the midpoint, so the capture made its
+   * big move in the open, after the ghost had gone: at 140ms it was 24% home
+   * where the phone's is 88%, and a delete read as dissolve-then-arrive.
+   *
+   * The ease-out spends its peak in the first frames instead — under a ghost
+   * still at 0.88 opacity, where nothing can be smeared because nothing can be
+   * seen — and is 93% home by 140ms. Which is the phone's number, and the part
+   * of that timing the vertical version was actually missing. The two halves
+   * overlap again; only the axis and the settle differ.
+   */
+  replaceYEase: "cubic-bezier(0.23, 1, 0.32, 1)",
   /**
    * How long the backdrop lingers after the *last* capture has dissolved.
    *
@@ -402,8 +374,7 @@ export const controlsSplit = {
    *
    * The move is the response to the press. An ease-in-out is dead for its first
    * third, and dead frames immediately after a press read as latency, not as
-   * restraint — the same argument galleryEffects.stepEase makes above, for the
-   * same reason.
+   * restraint.
    *
    * What changed is *which* ease-out. This used to be the house quint, and on a
    * quint the 280ms it ran at was visually finished at 101ms: the canvas snapped

@@ -56,7 +56,7 @@ export function WallpaperGalleryMobile({
   // first frame, since the gallery only ever mounts into an opening morph.
   const [isMorphing, setIsMorphing] = useState(true)
 
-  const { replacing, replacementStyle, beginReplacement } = useCaptureReplacement("slide")
+  const { replacing, replacementStyle, beginReplacement } = useCaptureReplacement("x")
 
   const carouselRef = useRef<BlossomCarouselHandle>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)

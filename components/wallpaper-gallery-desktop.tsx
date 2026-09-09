@@ -66,7 +66,7 @@ export function WallpaperGalleryDesktop({
       ? document.activeElement
       : null,
   )
-  const { replacementStyle, beginReplacement } = useCaptureReplacement("step")
+  const { replacementStyle, beginReplacement } = useCaptureReplacement("y")
   // The capture as it is actually painted, for a close that has to draw its own
   // collapse. See handleClose.
   const captureRef = useRef<HTMLImageElement>(null)
@@ -300,11 +300,11 @@ export function WallpaperGalleryDesktop({
    * The direction *is* passed on now, where it used to be the one thing this
    * delete had nothing to say about. The rail runs oldest to newest, so the
    * capture taking the slot lives directly above the deleted one and comes in
-   * from there — and from below in the one case above, where the oldest was
-   * deleted and the newer capture steps back into its place. Same sign
-   * convention as the touch gallery, read against this surface's rail instead of
-   * that one's strip. See galleryEffects.stepPx for why it crosses 28px here
-   * where the touch gallery crosses a whole screen.
+   * over the top edge — and up from the bottom in the one case above, where the
+   * oldest was deleted and the newer capture steps back into its place. Same
+   * sign convention as the touch gallery, read against this surface's rail
+   * instead of that one's strip: one slide, one curve, the axis the only
+   * difference. See galleryEffects.replaceYMs.
    */
   const handleDelete = () => {
     if (!currentCapture) return
@@ -423,17 +423,21 @@ export function WallpaperGalleryDesktop({
           onMouseLeave={showsVideo ? playback.hideControls : undefined}
         >
           {currentCapture && (
-            // A delete's step rides on this wrapper instead of the image. The
-            // image is a projection node, so Framer owns its transform for the
-            // length of the gallery morph; a second transform on the same
+            // A delete's arrival rides on this wrapper instead of the image.
+            // The image is a projection node, so Framer owns its transform for
+            // the length of the gallery morph; a second transform on the same
             // element would be overwritten mid-flight and fight the spring.
             //
+            // The wrapper is also what makes the travel honest: it is the
+            // viewer's own box, so translateY(100%) is exactly one slot however
+            // the capture inside it was letterboxed. Offsetting the picture by
+            // its own height instead would leave a landscape one parked in the
+            // top gutter at the start of the crossing.
+            //
             // A translate, which also retires the caveat the scale here needed:
-            // this box is the viewer's, and the capture is centred 56px left of
-            // its centre — half the rail's `right-28` — so scaling it moved the
-            // picture sideways as well as growing it, by about a pixel at 0.98
-            // and by more than that at anything deeper. A translation has no
-            // origin to be wrong about.
+            // the capture is centred 56px left of this box's centre — half the
+            // rail's `right-28` — so scaling it moved the picture sideways as
+            // well as growing it. A translation has no origin to be wrong about.
             <div
               className="absolute inset-0"
               style={replacementStyle}
