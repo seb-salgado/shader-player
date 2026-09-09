@@ -2,7 +2,6 @@
 
 import { useEffect, type CSSProperties } from "react"
 import {
-  animate,
   motion,
   useMotionValue,
   useReducedMotion,
@@ -40,8 +39,8 @@ const SHUTTER_SIZES = {
   mobile: { size: 68, ring: 4, fill: 56, stop: 24, stopRadius: 7 },
 } as const
 
-/** How long the ring takes to empty before it starts filling. */
-const RING_EMPTY_MS = 120
+/** How long the resting ring takes to hand over to the progress track. */
+const RING_FADE_MS = 120
 
 /** The track's weight against the arc's. Opacity, not hue — there is no hue here. */
 const TRACK_OPACITY = 0.3
@@ -86,8 +85,8 @@ interface ShutterButtonProps {
  * from every camera ever made. There is no red in this design to be coherent
  * with, so introducing one for a fifteen-second state would make it the loudest
  * thing in the app. Instead the ring — already present, already the camera body
- * — empties and refills as a progress track, and the fill becomes the stop
- * glyph. The elapsed time is legible in the viewfinder, where a camera puts it.
+ * — cross-fades into a progress track, and the fill becomes the stop glyph. The
+ * elapsed time is legible in the viewfinder, where a camera puts it.
  */
 export function ShutterButton({
   onPress,
@@ -102,50 +101,39 @@ export function ShutterButton({
   const prefersReducedMotion = useReducedMotion()
 
   /**
-   * How much of the ring is drawn: 1 is the solid ring at rest, 0 is empty.
+   * How much of the progress arc is drawn: 0 at the top of a take, 1 at the cap.
    *
-   * Its own value rather than reading `progress` directly, because the ring has
-   * to *empty* before it fills. Watching it drain and come back is what makes
-   * the same ring read as a progress track without anything being added to the
-   * shutter — and jumping straight to zero would just look like the ring
-   * disappeared.
+   * A mirror of `progress` rather than that value itself, because `progress` is
+   * optional — the photo shutter has no clock — and a hook cannot be.
+   *
+   * Nothing animates it. The arc's length is only ever the recorder's own
+   * number, so it can only ever move forward; the entrance and the exit are done
+   * with opacity instead, below.
    */
-  const ringFill = useMotionValue(1)
+  const ringFill = useMotionValue(0)
   const dashOffset = useTransform(ringFill, (value) => 1 - value)
 
   useEffect(() => {
-    if (!isRecording) {
-      if (prefersReducedMotion) {
-        ringFill.set(1)
-        return
-      }
-      const controls = animate(ringFill, 1, { duration: RING_EMPTY_MS / 1000, ease: "easeOut" })
-      return () => controls.stop()
-    }
+    if (!progress) return
+    ringFill.set(progress.get())
+    return progress.on("change", (value) => ringFill.set(value))
+  }, [progress, ringFill])
 
-    // Only follow progress once the ring has drained, or the two would fight
-    // over the same value for the first eighth of a second.
-    let following = prefersReducedMotion
-    let controls: ReturnType<typeof animate> | undefined
-    if (prefersReducedMotion) {
-      ringFill.set(0)
-    } else {
-      controls = animate(ringFill, 0, {
-        duration: RING_EMPTY_MS / 1000,
-        ease: "easeOut",
-        onComplete: () => {
-          following = true
-        },
-      })
-    }
-    const unsubscribe = progress?.on("change", (value) => {
-      if (following) ringFill.set(value)
-    })
-    return () => {
-      controls?.stop()
-      unsubscribe?.()
-    }
-  }, [isRecording, prefersReducedMotion, progress, ringFill])
+  /**
+   * One curve for all three arcs, so the hand-off reads as a single cross-fade
+   * rather than as three rings each doing something.
+   *
+   * Linear, which is the one place in this app that is right. The house ease-out
+   * is a quint, and on a 1 → 0 opacity ramp it spends the first frame dropping
+   * the ring to 62% and the rest of the 120ms lingering at nearly nothing — the
+   * same failure the shutter flash ran into (lib/springs.ts). Here it is worse
+   * than merely wasteful, because a cross-fade is two ramps read against each
+   * other: ease both and the pair dips hard in the middle and then crawls, which
+   * is a flicker where the whole point was continuity.
+   */
+  const ringFade = prefersReducedMotion
+    ? { duration: 0 }
+    : { duration: RING_FADE_MS / 1000, ease: "linear" as const }
 
   const radius = (geometry.size - geometry.ring) / 2
   const label = ariaLabel ?? (isRecording ? "Stop recording" : "Capture frame")
@@ -165,9 +153,9 @@ export function ShutterButton({
       )}
       style={{ width: geometry.size, height: geometry.size, ...style }}
     >
-      {/* The ring, as two arcs rather than a CSS border, so one of them can be a
-          progress track. At rest the arc is a complete circle at full strength
-          over an invisible track, which is the border it replaced.
+      {/* The ring, as three arcs rather than a CSS border, so one of them can be
+          a progress track. At rest only the first is visible, and it is exactly
+          the border it replaced.
           -90° puts zero at twelve o'clock; pathLength normalises the
           circumference to 1 so the dash offset is just the fraction remaining,
           with no 2πr in the component. */}
@@ -179,6 +167,24 @@ export function ShutterButton({
         height={geometry.size}
         fill="none"
       >
+        {/* The ring at rest, and *only* at rest — it is a separate circle from
+            the arc, which is the whole point. Sharing one circle meant that
+            starting a take had to retract it: 120ms of counter-clockwise sweep
+            immediately before a fifteen-second clockwise one, which reads as the
+            ring running backwards for a few frames before it catches itself.
+            Dissolving it instead leaves the arc free to only ever move forward,
+            and the same in reverse on stop. */}
+        <motion.circle
+          cx={geometry.size / 2}
+          cy={geometry.size / 2}
+          r={radius}
+          stroke="currentColor"
+          strokeWidth={geometry.ring}
+          initial={false}
+          animate={{ opacity: isRecording ? 0 : 1 }}
+          transition={ringFade}
+        />
+        {/* The track the arc runs on. */}
         <motion.circle
           cx={geometry.size / 2}
           cy={geometry.size / 2}
@@ -187,8 +193,14 @@ export function ShutterButton({
           strokeWidth={geometry.ring}
           initial={false}
           animate={{ opacity: isRecording ? TRACK_OPACITY : 0 }}
-          transition={prefersReducedMotion ? { duration: 0 } : { duration: RING_EMPTY_MS / 1000 }}
+          transition={ringFade}
         />
+        {/* The arc. It fades in with the track rather than arriving at full
+            strength, so the round cap's dot emerges out of the dissolving ring
+            instead of appearing on top of it. Held at its final value on the way
+            out for the same reason the timecode is (hooks/use-video-recorder.ts):
+            rewinding to zero while the exit is still playing is the last thing
+            you would want to see of a finished clip. */}
         <motion.circle
           cx={geometry.size / 2}
           cy={geometry.size / 2}
@@ -200,6 +212,9 @@ export function ShutterButton({
           strokeLinecap="round"
           pathLength={1}
           strokeDasharray={1}
+          initial={false}
+          animate={{ opacity: isRecording ? 1 : 0 }}
+          transition={ringFade}
           style={{ strokeDashoffset: dashOffset }}
         />
       </svg>
