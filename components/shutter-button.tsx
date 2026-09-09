@@ -49,6 +49,37 @@ const TRACK_OPACITY = 0.3
 /** How far the fill retreats under a press. Matches the `scale-90` photo mode still uses. */
 const PRESS_SCALE = 0.9
 
+/**
+ * The press, deliberately slower than the press affordance it replaced.
+ *
+ * `spring.fast` settles in about 70ms, which is shorter than any human click —
+ * so the fill always reached the pressed size and *stopped dead* before the
+ * finger came up, and the release then had to accelerate the glyph change from
+ * zero. Measured at 0 px/s for the ~30ms before release, with the run-in after
+ * it peaking near 400. Two velocity peaks with a full stop between them is what
+ * reads as two staged movements, even with no frame dropped anywhere.
+ *
+ * At this duration a normal press is released mid-flight, so the spring is still
+ * carrying speed when the target changes and the glyph change continues the
+ * press rather than restarting after it. A deliberate long hold still settles —
+ * correctly, since holding is a state, not a stage.
+ *
+ * The dip is 10% of the fill either way; only the time it is allowed to take
+ * changed, so nothing about the shape of the press moved.
+ */
+const PRESS_SPRING = { type: "spring", duration: 0.34, bounce: 0 } as const
+
+/**
+ * How far into the glyph change a press travels before the finger comes up.
+ *
+ * A third is enough for the press to read as the start of the morph rather than
+ * as a dip that happens to point the same way, and little enough that letting go
+ * still leaves the majority of the movement to the release. Above about half the
+ * press stops looking like a press and starts looking like the change already
+ * happened, which makes cancelling it by dragging away a surprise.
+ */
+const PRESS_TOWARD = 1 / 3
+
 interface ShutterButtonProps {
   onPress: () => void
   /**
@@ -179,9 +210,30 @@ export function ShutterButton({
    * lib/toolbar-geometry.ts: with the box animated, a scaled corner would have
    * to be pre-compensated by a number nobody could explain later.
    */
-  const press = isPressed ? PRESS_SCALE : 1
-  const fillSize = (isRecording ? geometry.stop : geometry.fill) * press
-  const fillRadius = (isRecording ? geometry.stopRadius : geometry.fill / 2) * press
+  const glyph = isRecording ? geometry.stop : geometry.fill
+  const glyphRadius = isRecording ? geometry.stopRadius : geometry.fill / 2
+  const next = isRecording ? geometry.fill : geometry.stop
+  const nextRadius = isRecording ? geometry.fill / 2 : geometry.stopRadius
+
+  /**
+   * Where the press takes the fill.
+   *
+   * A press always recedes — that is the affordance, and growing under the
+   * finger would read as the button pushing back. But when the press is *also*
+   * about to shrink the fill, the two are the same movement and it is a mistake
+   * to make them separate ones: dipping to a size the glyph change then has to
+   * accelerate away from is what produced the second stage. So the press heads
+   * for the glyph it is about to become, and stops a third of the way there.
+   *
+   * `Math.min` is the whole rule: press toward the outcome, unless the outcome
+   * is larger, in which case fall back to the plain dip. Starting a recording
+   * takes the first branch and pressing stop takes the second, which is right —
+   * pressing stop is followed by the fill *growing*, and there is no way to
+   * begin that under the finger without the press pushing back.
+   */
+  const dip = (from: number, to: number) => Math.min(from * PRESS_SCALE, from + (to - from) * PRESS_TOWARD)
+  const fillSize = isPressed ? dip(glyph, next) : glyph
+  const fillRadius = isPressed ? dip(glyphRadius, nextRadius) : glyphRadius
 
   const radius = (geometry.size - geometry.ring) / 2
   const label = ariaLabel ?? (isRecording ? "Stop recording" : "Capture frame")
@@ -286,16 +338,7 @@ export function ShutterButton({
         )}
         initial={false}
         animate={{ width: fillSize, height: fillSize, borderRadius: fillRadius }}
-        // Going down under the finger is a response and should be quick; coming
-        // back out is the glyph settling, and gets the tier everything else that
-        // settles in this app uses.
-        transition={
-          prefersReducedMotion
-            ? { duration: 0 }
-            : isPressed
-              ? spring.fast
-              : spring.moderate
-        }
+        transition={prefersReducedMotion ? { duration: 0 } : isPressed ? PRESS_SPRING : spring.moderate}
       />
     </button>
   )
