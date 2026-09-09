@@ -31,16 +31,3 @@ export async function initializeAudioContext() {
   
   isInitialized = true;
 }
-
-export async function resumeAudioContext() {
-  const ctx = getAudioContext();
-  if (ctx && ctx.state === "suspended") {
-    await ctx.resume();
-  }
-  return ctx;
-}
-
-export function isAudioReady(): boolean {
-  const ctx = getAudioContext();
-  return ctx !== null && ctx.state === "running";
-}

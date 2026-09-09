@@ -5,7 +5,6 @@ import { useTheme } from "next-themes"
 import { Moon, Sun } from "lucide-react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { FluidTooltip } from "@/components/ui/tooltip"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { spring } from "@/lib/springs"
 
 export function AppearanceToggle() {
@@ -21,16 +20,11 @@ export function AppearanceToggle() {
   const Icon = targetTheme === "dark" ? Moon : Sun
   const label = mounted ? `Switch to ${targetTheme} mode` : "Appearance"
 
-  const handleClick = () => {
-    void playDigitalClick("medium")
-    setTheme(targetTheme)
-  }
-
   return (
     <FluidTooltip content={label} side="top">
       <button
         type="button"
-        onClick={handleClick}
+        onClick={() => setTheme(targetTheme)}
         aria-label={label}
         // The negative margin preserves the 16px glyph's right-edge alignment
         // while allowing the circular hit target to grow to 44px.

@@ -6,7 +6,6 @@ import { ControlsPanel } from "./controls-panel"
 import { CaptureSlot } from "./capture-slot"
 import { ShutterButton } from "./shutter-button"
 import { ModeTabs, type CaptureMode } from "./mode-tabs"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { useReducedMotion, type MotionValue } from "framer-motion"
 import { controlsSplit, settleEase } from "@/lib/springs"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -227,10 +226,7 @@ export function MobileNav({
             </div>
 
             <button
-              onClick={() => {
-                playDigitalClick("strong")
-                onControlsOpenChange(true)
-              }}
+              onClick={() => onControlsOpenChange(true)}
               className="flex items-center justify-center rounded-full bg-foreground/[0.06] text-muted-foreground transition-[color,opacity,transform] hoverFine:text-foreground active:scale-[0.97]"
               aria-label="Shader controls"
               style={{ ...hide(240, controlsOpen), width: FILTERS_SIZE, height: FILTERS_SIZE }}

@@ -13,7 +13,6 @@ import { downloadCapture } from "@/lib/canvas-capture"
 import { GalleryVideo } from "@/components/gallery-video"
 import { GalleryVideoControls } from "@/components/gallery-video-controls"
 import { useRecordingPlayback } from "@/hooks/use-recording-playback"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { playDownloadConfirmation } from "@/lib/download-audio"
 import { toast } from "sonner"
 import { galleryMorph } from "@/lib/springs"
@@ -236,7 +235,6 @@ export function WallpaperGalleryMobile({
 
   const handleSelectCapture = (index: number) => {
     if (index === currentIndex) return
-    playDigitalClick("strong")
     scrollToIndex(index, !prefersReducedMotion)
   }
 
@@ -255,7 +253,6 @@ export function WallpaperGalleryMobile({
    */
   const handleDownload = () => {
     if (!currentCapture) return
-    playDigitalClick("strong")
     downloadCapture(currentCapture)
     playDownloadConfirmation("strong")
     toast.success(currentCapture.kind === "video" ? "Video downloaded" : "Image downloaded")
@@ -286,7 +283,6 @@ export function WallpaperGalleryMobile({
    */
   const handleDelete = () => {
     if (!currentCapture) return
-    playDigitalClick("strong")
 
     const src = stillUrl(currentCapture)
     // Both read before the removal, while this capture is still the one painted.
@@ -309,7 +305,6 @@ export function WallpaperGalleryMobile({
   }
 
   const handleClose = () => {
-    playDigitalClick("strong")
     // The shared element is bound to the capture the gallery was opened on, and
     // that slide is off screen the moment you swipe away from it — the morph
     // home would fly from a rect nobody can see. So the page draws the collapse

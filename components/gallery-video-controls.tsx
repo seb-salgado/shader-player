@@ -2,7 +2,6 @@
 
 import { useCallback, useRef } from "react"
 import { Pause, Play } from "lucide-react"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { formatDuration } from "@/lib/video-capture"
 import type { RecordingPlayback } from "@/hooks/use-recording-playback"
 import { cn } from "@/lib/utils"
@@ -138,11 +137,6 @@ export function GalleryVideoControls({
     event.stopPropagation()
   }
 
-  const handleToggle = () => {
-    playDigitalClick("strong")
-    toggle()
-  }
-
   return (
     <div
       className={cn(
@@ -207,7 +201,7 @@ export function GalleryVideoControls({
         <div className="flex items-center gap-4">
           <button
             type="button"
-            onClick={handleToggle}
+            onClick={toggle}
             aria-label={playing ? "Pause recording" : "Play recording"}
             className="flex cursor-pointer items-center justify-center text-white/80 outline-none transition-colors duration-100 hover:text-white focusKey:text-white motion-reduce:transition-none"
           >

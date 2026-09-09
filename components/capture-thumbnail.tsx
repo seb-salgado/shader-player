@@ -3,7 +3,6 @@
 import { useRef } from "react"
 import { motion, useReducedMotion } from "framer-motion"
 import { type Capture, stillUrl } from "@/lib/types"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { captureFlash, galleryMorph, spring } from "@/lib/springs"
 
 export const THUMBNAIL_RADIUS = 8
@@ -142,7 +141,6 @@ export function CaptureThumbnail({
       press.getBoundingClientRect()
     }
 
-    playDigitalClick("strong")
     onClick()
 
     requestAnimationFrame(() => {

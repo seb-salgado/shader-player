@@ -1,7 +1,6 @@
 "use client"
 
 import { motion, useReducedMotion } from "framer-motion"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { useSurface } from "@/lib/surface-context"
 import { raisedThumb } from "@/lib/surface-classes"
 import { spring } from "@/lib/springs"
@@ -158,7 +157,6 @@ export function SegmentedTabs({
 
   const handleSelect = (id: string) => {
     if (disabled || id === value) return
-    void playDigitalClick("medium")
     onChange(id)
   }
 

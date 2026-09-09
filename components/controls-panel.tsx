@@ -7,7 +7,6 @@ import { X } from "lucide-react"
 
 import type { ShaderParams } from "@/lib/shader-uniforms"
 import { getShaderConfig } from "@/lib/shader-configs"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { controlsSplit } from "@/lib/springs"
 import { useSheetDetent } from "@/hooks/use-sheet-detent"
 import { CreditsFooter } from "./credits-footer"
@@ -166,10 +165,6 @@ export function ControlsPanel({
             returnFocusRef.current?.focus()
             returnFocusRef.current = null
           }}
-          onEscapeKeyDown={() => playDigitalClick("strong")}
-          // Tapping the canvas above is a dismiss, and it gets the same receipt
-          // as the X and as Escape.
-          onPointerDownOutside={() => playDigitalClick("strong")}
           // `dark` matches the mobile control bar: this panel only ever opens on
           // mobile, so it stays on the dark palette whatever the page theme is.
           //
@@ -291,10 +286,7 @@ export function ControlsPanel({
               <div className="flex justify-center">
                 <button
                   type="button"
-                  onClick={() => {
-                    playDigitalClick("soft")
-                    toggle()
-                  }}
+                  onClick={toggle}
                   aria-expanded={detent === "tall"}
                   aria-label={detent === "tall" ? "Collapse controls" : "Expand controls"}
                   className="group flex items-center justify-center px-8 pb-2 pt-3"
@@ -321,7 +313,6 @@ export function ControlsPanel({
                   <button
                     type="button"
                     aria-label="Close controls"
-                    onClick={() => playDigitalClick("strong")}
                     // 44 square for the thumb, pulled back onto the glyph's old
                     // position and out of the row's height so neither moves:
                     // -14 right lands the icon's centre back at the 24px it sat

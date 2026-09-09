@@ -9,7 +9,6 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion"
-import { playDigitalClick } from "@/lib/audio-feedback"
 import { spring } from "@/lib/springs"
 import { cn } from "@/lib/utils"
 
@@ -148,18 +147,13 @@ export function ShutterButton({
     }
   }, [isRecording, prefersReducedMotion, progress, ringFill])
 
-  const handlePress = () => {
-    playDigitalClick("strong")
-    onPress()
-  }
-
   const radius = (geometry.size - geometry.ring) / 2
   const label = ariaLabel ?? (isRecording ? "Stop recording" : "Capture frame")
 
   return (
     <button
       type="button"
-      onClick={handlePress}
+      onClick={onPress}
       aria-label={label}
       // Unpositioned, like CaptureThumbnail: the bar around it does the layout.
       className={cn(

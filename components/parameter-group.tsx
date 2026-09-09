@@ -9,7 +9,6 @@ import { ParameterSlider } from "./parameter-slider"
 import { ColorPicker } from "./color-picker"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { useCollapsedGroup } from "@/hooks/use-collapsed-group"
-import { playDigitalClick } from "@/lib/audio-feedback"
 
 interface ParameterGroupProps {
   group: ShaderParameterGroup
@@ -51,7 +50,6 @@ export function ParameterGroup({ group, params, onChange, shaderId, spacing = "n
 
   const handleToggle = () => {
     setAnimateDisclosure(true)
-    playDigitalClick("weak")
     toggleCollapsed()
   }
 
