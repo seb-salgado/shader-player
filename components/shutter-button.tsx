@@ -46,11 +46,11 @@ const RING_FADE_MS = 120
 /** The track's weight against the arc's. Opacity, not hue — there is no hue here. */
 const TRACK_OPACITY = 0.3
 
-/** How far the fill retreats under a press. Matches the `scale-90` photo mode still uses. */
+/** How far the fill retreats under a press. The `scale-90` this used to be, on a curve. */
 const PRESS_SCALE = 0.9
 
 /**
- * The press, deliberately slower than the press affordance it replaced.
+ * The toggle press, deliberately slower than the press affordance it replaced.
  *
  * `spring.fast` settles in about 70ms, which is shorter than any human click —
  * so the fill always reached the pressed size and *stopped dead* before the
@@ -68,6 +68,22 @@ const PRESS_SCALE = 0.9
  * changed, so nothing about the shape of the press moved.
  */
 const PRESS_SPRING = { type: "spring", duration: 0.34, bounce: 0 } as const
+
+/**
+ * Image mode's press, which has nothing to run into.
+ *
+ * The duration above is tuned to be *interrupted* — the finger comes up
+ * mid-flight and the glyph change inherits the speed. A momentary press has no
+ * second half to hand off to, so at 340ms a normal tap would turn around a few
+ * pixels in and never read as a dip at all. This one is short enough to be most
+ * of the way there when a quick press is released, and still resolves on its own
+ * under a long hold.
+ *
+ * The dip itself is unchanged — 10% of the fill, same as the `scale-90` this
+ * replaced. Only the time it is allowed to take is new, which is the entire
+ * difference between the two modes now.
+ */
+const PRESS_SPRING_MOMENTARY = { type: "spring", duration: 0.2, bounce: 0 } as const
 
 /**
  * How far into the glyph change a press travels before the finger comes up.
@@ -205,22 +221,27 @@ export function ShutterButton({
     : { duration: RING_FADE_MS / 1000, ease: "linear" as const }
 
   /**
-   * Video mode's press, tracked in React so it can be a target of the same
-   * spring the glyph uses. One re-render per press — the per-frame values in
-   * here are MotionValues and still never reach React.
+   * The press, tracked in React so it can be a target of the same spring the
+   * glyph uses. One re-render per press — the per-frame values in here are
+   * MotionValues and still never reach React.
+   *
+   * Both modes, though only video needs the *sharing*. Image mode used to press
+   * in CSS, and that press was a hard cut in both directions: Tailwind v4
+   * compiles `scale-90` to the independent `scale` property, which the
+   * `transform` transition beside it did not cover, so the 100ms it read as had
+   * never once run. Moving it onto the same animated box is the smallest way to
+   * give it a curve at all, and it costs image mode nothing that was working.
    */
   const isToggle = mode === "video"
   const [isPressed, setIsPressed] = useState(false)
-  const pressHandlers = isToggle
-    ? {
-        onPointerDown: () => setIsPressed(true),
-        onPointerUp: () => setIsPressed(false),
-        // The button does not capture the pointer, so a release outside it never
-        // reaches onPointerUp. Leaving is the release, as far as the fill knows.
-        onPointerLeave: () => setIsPressed(false),
-        onPointerCancel: () => setIsPressed(false),
-      }
-    : undefined
+  const pressHandlers = {
+    onPointerDown: () => setIsPressed(true),
+    onPointerUp: () => setIsPressed(false),
+    // The button does not capture the pointer, so a release outside it never
+    // reaches onPointerUp. Leaving is the release, as far as the fill knows.
+    onPointerLeave: () => setIsPressed(false),
+    onPointerCancel: () => setIsPressed(false),
+  }
 
   /**
    * One number for the fill, whatever is acting on it.
@@ -239,8 +260,16 @@ export function ShutterButton({
    */
   const glyph = isRecording ? geometry.stop : geometry.fill
   const glyphRadius = isRecording ? geometry.stopRadius : geometry.fill / 2
-  const next = isRecording ? geometry.fill : geometry.stop
-  const nextRadius = isRecording ? geometry.fill / 2 : geometry.stopRadius
+  // Where the fill is headed *after* this press — the stop glyph, or back out of
+  // it. Image mode is going nowhere, so it names its own size and `dip` below
+  // falls through to the plain 10%. Leaving it as the stop glyph would have image
+  // mode pressing a third of the way toward a square it can never become.
+  const next = isToggle ? (isRecording ? geometry.fill : geometry.stop) : glyph
+  const nextRadius = isToggle
+    ? isRecording
+      ? geometry.fill / 2
+      : geometry.stopRadius
+    : glyphRadius
 
   /**
    * Where the press takes the fill.
@@ -351,12 +380,9 @@ export function ShutterButton({
           parent is a fixed box with flex centring, so nothing outside this
           button can move.
 
-          Image mode keeps the CSS press it has always had. Note that
-          `group-active:scale-90` compiles to the independent `scale` property in
-          Tailwind v4, which the `transform` transition beside it does not cover
-          — so that press is a hard cut in both directions rather than the 100ms
-          it reads as. Left alone deliberately; it is what image capture ships
-          today, and changing it is a separate decision from this one. */}
+          Both presses live on this box now, so the only thing left in CSS here
+          is the colour. See PRESS_SPRING_MOMENTARY for what image mode gained
+          and the press state above for what it lost. */}
       <motion.span
         className={cn(
           "relative block",
@@ -375,13 +401,22 @@ export function ShutterButton({
              colour crossfade carries no movement to be sick from, and cutting it
              would leave the one state change in this control that has no motion
              to explain it landing as a hard flick. */
+          "[transition:background-color_150ms_ease-out]",
           isToggle
-            ? "bg-shutter-record groupHoverFine:bg-shutter-record/90 [transition:background-color_150ms_ease-out]"
-            : "bg-shutter-ink groupHoverFine:bg-shutter-ink/90 group-active:scale-90 [transition:transform_100ms_ease-out,background-color_150ms_ease-out] motion-reduce:[transition:background-color_150ms_ease-out]",
+            ? "bg-shutter-record groupHoverFine:bg-shutter-record/90"
+            : "bg-shutter-ink groupHoverFine:bg-shutter-ink/90",
         )}
         initial={false}
         animate={{ width: fillSize, height: fillSize, borderRadius: fillRadius }}
-        transition={prefersReducedMotion ? { duration: 0 } : isPressed ? PRESS_SPRING : spring.moderate}
+        transition={
+          prefersReducedMotion
+            ? { duration: 0 }
+            : isPressed
+              ? isToggle
+                ? PRESS_SPRING
+                : PRESS_SPRING_MOMENTARY
+              : spring.moderate
+        }
       />
     </button>
   )
