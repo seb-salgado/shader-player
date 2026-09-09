@@ -70,21 +70,30 @@ interface SegmentedTabsProps {
  * not at all: the bar is content-sized, so leaving one of them taller makes it
  * the bar's height and the other two float in the middle of it.
  *
- * Mobile keeps its cells at 40. It shares nothing with the desktop bar but this
- * component — that bar is sized for thumbs, and its own row has no slot or
- * shutter beside the track to line up with.
+ * The mobile bar keeps its cells at 40. It shares nothing with the desktop bar
+ * but this component — that bar is sized for thumbs, and its own row has no slot
+ * or shutter beside the track to line up with.
  *
- * The height is the fixed number in all three shapes; only the width differs.
- * For two of them what the cell holds is what decides it: a `pill` is `px-3` and
- * comes out as wide as the word inside it, and a `circle` is `size-*`, the same
- * number as the height, which is what a numeral wants — it has no length to
- * express. Neither needs a radius of its own: the cell carries `rounded-full`,
- * so a square box *is* the circle.
+ * For two of the shapes what the cell holds is what decides its width: a `pill`
+ * is `px-3` and comes out as wide as the word inside it, and a `circle` is
+ * `size-*`, the same number as the height, which is what a numeral wants — it
+ * has no length to express. Neither needs a radius of its own: the cell carries
+ * `rounded-full`, so a square box *is* the circle.
  *
  * `block` inverts that. The cell is `flex-1` — a third of whatever the track is
- * — and the track is the thing being sized, by the column it sits in. Width is
- * the *only* thing it changes: it rounds `rounded-full` like the other two, so a
- * stretched cell comes out as a wide pill rather than as a box.
+ * — and the track is the thing being sized, by the column it sits in. It rounds
+ * `rounded-full` like the other two, so a stretched cell comes out as a wide
+ * pill rather than as a box.
+ *
+ * Being sized by its column is also why `block` is the one shape that sets its
+ * own height rather than taking the bar's. At `mobile` it is 36, not 40: the
+ * sheet's sliders are 36 (ParameterSlider), and a track whose selected cell is a
+ * different height from every row under it is the one control in that column
+ * standing at its own scale. The pill and circle at that size answer to the
+ * mobile *bar* instead, and stay at 40 — hence a height per shape and not per
+ * size. The block track therefore measures 44 overall, the 36 cell plus the
+ * `p-1` inset on both sides; only the cell was asked to match the sliders, and
+ * the inset is what keeps the raised cell reading as raised out of something.
  *
  * It stated its own radius once — a 12px track over 8px cells, echoing the
  * sheet's corner, on the argument that a stretched cell is no longer its own
@@ -110,20 +119,32 @@ interface SegmentedTabsProps {
  * They differ only between the cells: desktop butts them, mobile spaces them for
  * the touch targets.
  *
- * `cellHeight` is the pixel value of the cell class, and half of it is the
- * indicator's radius. Written out rather than left to `rounded-full` because of
- * the pill instances: there the indicator morphs *width* as well as position,
- * the cells not all being the same size, and Framer's layout projection
- * interpolates whatever number it is given — so a 9999px sentinel rides the
- * whole morph as an ellipse while the real radius stays a pill at both ends.
- * The circle and block instances only ever travel — their cells are all one
- * width — so the value is merely correct for them rather than load-bearing.
- * Same lesson as SLOT_RADIUS in lib/toolbar-geometry.ts. Keep it in step with
- * the classes beside it.
+ * `height` is the pixel value of the cell class it sits beside, and half of it
+ * is the indicator's radius. Written out rather than left to `rounded-full`
+ * because of the pill instances: there the indicator morphs *width* as well as
+ * position, the cells not all being the same size, and Framer's layout
+ * projection interpolates whatever number it is given — so a 9999px sentinel
+ * rides the whole morph as an ellipse while the real radius stays a pill at
+ * both ends. The circle and block instances only ever travel — their cells are
+ * all one width — so the value is merely correct for them rather than
+ * load-bearing. Same lesson as SLOT_RADIUS in lib/toolbar-geometry.ts. Keep it
+ * in step with the classes beside it.
  */
 const SIZES = {
-  desktop: { track: "gap-0 p-1", pill: "h-9 px-3", circle: "size-9", block: "h-9 flex-1", text: "text-[13px]", cellHeight: 36 },
-  mobile: { track: "gap-1 p-1", pill: "h-10 px-3", circle: "size-10", block: "h-10 flex-1", text: "text-[13px]", cellHeight: 40 },
+  desktop: {
+    track: "gap-0 p-1",
+    text: "text-[13px]",
+    pill: { cell: "h-9 px-3", height: 36 },
+    circle: { cell: "size-9", height: 36 },
+    block: { cell: "h-9 flex-1", height: 36 },
+  },
+  mobile: {
+    track: "gap-1 p-1",
+    text: "text-[13px]",
+    pill: { cell: "h-10 px-3", height: 40 },
+    circle: { cell: "size-10", height: 40 },
+    block: { cell: "h-9 flex-1", height: 36 },
+  },
 } as const
 
 /**
@@ -192,7 +213,7 @@ export function SegmentedTabs({
             onClick={() => handleSelect(option.id)}
             className={cn(
               "relative flex items-center justify-center rounded-full transition-[color,transform] duration-150 ease-out active:scale-[0.97] motion-reduce:transition-none",
-              SIZES[size][shape],
+              SIZES[size][shape].cell,
               SIZES[size].text,
               isSelected ? "text-foreground" : "text-muted-foreground hoverFine:text-foreground",
             )}
@@ -205,7 +226,7 @@ export function SegmentedTabs({
                 transition={spring.moderate}
                 aria-hidden
                 className={cn("absolute inset-0", raised)}
-                style={{ borderRadius: SIZES[size].cellHeight / 2 }}
+                style={{ borderRadius: SIZES[size][shape].height / 2 }}
               />
             )}
             {/* Above the indicator, which is painted into the same box. */}

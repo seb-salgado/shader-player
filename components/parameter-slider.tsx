@@ -22,9 +22,12 @@ export function ParameterSlider({ label, value, min, max, step, onChange }: Para
       variant="scrubber"
       label={label}
       formatValue={(currentValue) => currentValue.toFixed(3)}
-      // 36px on desktop to match the shader dropdown; the mobile panel keeps
-      // SliderComfortable's own 32px.
-      className="w-full md:h-9 rounded-[8px]"
+      // 36px in both panels. It matched the shader dropdown on desktop and let
+      // mobile keep SliderComfortable's own 32px, back when nothing in the sheet
+      // had to line up with it. The sheet's shader track is on the same number
+      // now — see SIZES in segmented-tabs.tsx — and a row of 36s under a 32 was
+      // the one control in that column sitting at its own height.
+      className="w-full h-9 rounded-[8px]"
     />
   )
 }
