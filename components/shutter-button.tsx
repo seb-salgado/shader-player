@@ -112,22 +112,49 @@ interface ShutterButtonProps {
  * part of the body and only the button travels; scaling both would read as the
  * whole shutter assembly shrinking into the bar.
  *
- * Ring and fill are both `currentColor`, which is what keeps them moving
- * together: the hover pulls the ink back to 90% on the button and both follow.
- * The same /90 every other solid control in here uses, and it lands the right
- * way round in both themes because the palette is achromatic — 90% of the ink is
- * 10% of the surface behind it, so light mode's dark shutter lifts toward the
- * bar and dark mode's near-white one settles into it.
+ * **The chrome is ink; only the fill takes a colour.** The ring, the track and
+ * the arc are all `currentColor` off the button, so they move together on
+ * `--shutter-ink` exactly as before. The fill names its own colour instead, and
+ * that is the whole of the split: the ring is the camera body and a body does
+ * not change colour, the fill is the button and the button is what the mode
+ * acts on. Tinting the ring as well would put the red on the one element that
+ * also has to read as a *progress* track for fifteen seconds, and a red arc
+ * running down a red ring is a worse clock than an ink one.
+ *
+ * Both halves keep the /90 hover — each on its own colour — which is the same
+ * pullback every other solid control in here uses. It lands the right way round
+ * in both themes for the same reason it always did: /90 is 10% of the surface
+ * behind it, so the light bar washes its colour up and the dark bar settles its
+ * colour down, red or ink. The fill needs `groupHoverFine:` rather than
+ * `hoverFine:` because it is a 36px target inside a 44px one; see the variant in
+ * app/globals.css.
  *
  * hoverFine, not hover: a touch device would otherwise latch the state on after
  * a tap and hold it there through the capture.
  *
- * **Recording is drawn achromatically**, which is the one place this departs
- * from every camera ever made. There is no red in this design to be coherent
- * with, so introducing one for a fifteen-second state would make it the loudest
- * thing in the app. Instead the ring — already present, already the camera body
- * — cross-fades into a progress track, and the fill becomes the stop glyph. The
- * elapsed time is legible in the viewfinder, where a camera puts it.
+ * **The red belongs to the mode, not to the take.** This used to be drawn
+ * achromatically on the argument that a red for a fifteen-second state would be
+ * the loudest thing in the app for fifteen seconds. That argument is right about
+ * *recording* and wrong about the control: bound to `mode`, the red is not a
+ * state that flares up and dies, it is what the shutter is for. Video mode is
+ * the app's resting state, so the fill is simply red until you ask for a still —
+ * which is the reading every camera has, and the reason nobody has to be taught
+ * it.
+ *
+ * It also does the job the ink version could not. `mode` already changes the
+ * shutter's *behaviour* — momentary in image, a toggle in video (see the press
+ * below) — and until now the only warning of that was a tab label two elements
+ * away. A control that behaves differently should look different before it is
+ * pressed, not after.
+ *
+ * The consequence is that the stop glyph is red too, which is correct rather
+ * than incidental: pressing record changes the fill's *shape*, and if it changed
+ * the colour at the same moment the press would read as two things happening.
+ * The colour is the one thing that holds still across the whole take.
+ *
+ * Everything else about recording stays achromatic. The ring cross-fades into a
+ * progress track, and the elapsed time is legible in the viewfinder, where a
+ * camera puts it.
  */
 export function ShutterButton({
   onPress,
@@ -332,9 +359,25 @@ export function ShutterButton({
           today, and changing it is a separate decision from this one. */}
       <motion.span
         className={cn(
-          "relative block bg-current",
-          !isToggle &&
-            "group-active:scale-90 [transition:transform_100ms_ease-out] motion-reduce:transition-none",
+          "relative block",
+          /* 150ms ease-out, which is not a fresh decision — it is the colour
+             transition this app already runs, on the button beside this span and
+             on the tab labels that trigger it. Worth writing out rather than
+             tuning: the mode tab's thumb slides on spring.moderate (160ms,
+             bounce 0), so one press moves the thumb and tints the fill over
+             essentially one beat. Give the fill its own number and the same
+             press becomes two events that happen to be close together.
+
+             ease-out and not `ease`, for the same reason: matching the pair it
+             is read against beats matching the general rule for colour.
+
+             Kept under prefers-reduced-motion, unlike the transform beside it. A
+             colour crossfade carries no movement to be sick from, and cutting it
+             would leave the one state change in this control that has no motion
+             to explain it landing as a hard flick. */
+          isToggle
+            ? "bg-shutter-record groupHoverFine:bg-shutter-record/90 [transition:background-color_150ms_ease-out]"
+            : "bg-shutter-ink groupHoverFine:bg-shutter-ink/90 group-active:scale-90 [transition:transform_100ms_ease-out,background-color_150ms_ease-out] motion-reduce:[transition:background-color_150ms_ease-out]",
         )}
         initial={false}
         animate={{ width: fillSize, height: fillSize, borderRadius: fillRadius }}

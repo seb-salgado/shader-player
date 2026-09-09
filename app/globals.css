@@ -45,6 +45,22 @@
      than the white-on-dark it mirrors, so matching --foreground exactly makes
      the light shutter the heavier of the two. */
   --shutter-ink: oklch(0.28 0 0);
+  /* The shutter's fill in video mode, and the only chromatic thing in this
+     palette. Everything else here is `oklch(L 0 0)` — which is what makes a red
+     affordable rather than loud: it has no other hue to compete with, so it does
+     not have to shout to be the exception. Hue 27 is --destructive's own family
+     (27.325 / 25.723), so the app has one red rather than two that nearly match.
+
+     Chroma is held at 0.208 across both themes and only lightness moves, so this
+     is one red seen against two grounds rather than two different reds.
+
+     Light is pulled back to L 0.55, well under Apple's systemRed (~0.637), for
+     the same reason --shutter-ink stops short of --foreground: this side of the
+     palette is dark-on-light, which already reads denser. Full-strength red on a
+     near-white bar buzzes against the edge of the fill, and a shutter that
+     vibrates at rest is worse than one that is merely visible.
+ */
+  --shutter-record: oklch(0.55 0.208 27);
   --surface-1: #FAFAFA;
   --surface-2: #FCFCFC;
   --surface-3: #FFFFFF;
@@ -110,6 +126,13 @@
   --sidebar-ring: oklch(0.439 0 0);
   /* Dark needs no pullback — full strength is right on this side. */
   --shutter-ink: var(--foreground);
+  /* Lifted 0.095 for the dark ground — the same asymmetry --shutter-ink has, in
+     the same direction. A red held at the light value goes to maroon against
+     #171717: dark grounds eat lightness before they eat chroma, so what survives
+     is a muddy shape rather than a signal. L 0.645 lands a hair under dark
+     systemRed (~0.657), which keeps it the loudest thing in the bar without
+     making it the loudest thing on the screen — the artwork is still that. */
+  --shutter-record: oklch(0.645 0.208 27);
   --surface-1: #171717;
   --surface-2: #1E1E1E;
   --surface-3: #252525;
@@ -194,6 +217,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-shutter-ink: var(--shutter-ink);
+  --color-shutter-record: var(--shutter-record);
   --color-surface-1: var(--surface-1);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -526,6 +550,22 @@ input[type="range"]::-moz-range-thumb {
 @custom-variant hoverFine {
   @media (hover: hover) and (pointer: fine) {
     &:hover {
+      @slot;
+    }
+  }
+}
+
+/* hoverFine read off an ancestor `.group` instead of off the element itself,
+   for when the thing that changes on hover is not the thing the pointer is over.
+   `hoverFine:group-hover:` does not compose into this: hoverFine hardcodes
+   `&:hover`, so stacking the two demands a hover on the child *and* the group,
+   and the child is the smaller target. The shutter is exactly that case — its
+   fill is a 36px circle inside a 44px button, and hovering the ring around it
+   has to pull the fill back too, or the two halves of one control disagree.
+   `:where()` so the ancestor costs no specificity and utilities keep sorting. */
+@custom-variant groupHoverFine {
+  @media (hover: hover) and (pointer: fine) {
+    &:is(:where(.group):hover *) {
       @slot;
     }
   }
