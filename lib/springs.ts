@@ -176,25 +176,34 @@ export const galleryEffects = {
    * at 220ms that is four thousand pixels a second, which stops reading as a
    * picture sliding and starts reading as a cut with a smear on it.
    *
-   * 340ms is 220 × √2.4 — duration scaled by the *root* of the distance rather
-   * than by the distance. Matching the phone's pixels-per-second outright would
-   * be 500ms+, and it would feel slower than the phone rather than the same:
-   * a longer travel is read as one movement, not as a proportionally longer one,
-   * so the eye wants somewhat more time and nothing like linearly more. It is
-   * over the 300ms UI ceiling on purpose — this is drawer-sized travel, and the
-   * drawer band is where it belongs.
+   * It was 340 — 220 × √2.4, duration scaled by the *root* of the distance — on
+   * the argument that a longer travel is read as one movement rather than as a
+   * proportionally longer one, so the eye wants somewhat more time and nothing
+   * like linearly more. That reasoning still holds in isolation and is not why
+   * this number moved.
    *
-   * The consequence worth knowing: the exit finishes at 220 and the arrival runs
-   * on to 340, so the last 120ms of a desktop delete is the capture that stayed,
-   * alone and still settling. That is the right thing for the eye to end on, and
-   * it is the one place these two surfaces genuinely differ in shape rather than
-   * in axis.
+   * What moved it is the rail, which now draws a delete of its own: the stack
+   * closes over the gap and the selection ring walks a slot, both on the 280ms
+   * spring the rail uses for every other step. 340 against 280 is the worst
+   * available gap — near enough to read as one beat that misses, far enough that
+   * the viewer is still settling after the rail has stopped. Two surfaces, one
+   * gesture, one clock; the rail's spring is the one that cannot move, since it
+   * is shared with the ring and the scroll for the reasons SELECTION_SPRING sets
+   * out. So this one comes to meet it.
+   *
+   * The price, paid knowingly: 850px in 280ms is about 3000px/s where 340 was
+   * 2500, which is quicker than the curve was chosen for. Watch for the smear
+   * this comment used to warn about at 220 — if it shows, the fix is to slow the
+   * rail *and* the viewer together, not to split them again.
+   *
+   * The exit still finishes at 220, so a delete now ends on 60ms of the capture
+   * that stayed rather than 120.
    *
    * No opacity on it, on either surface: these captures are near-identical soft
    * gradients, and fading one up over another is how you get mush instead of a
    * replacement. The arriving picture is opaque for the whole crossing.
    */
-  replaceYMs: 340,
+  replaceYMs: 280,
   /**
    * Touch: an ease-in-*out* rather than the ease-out an arrival would normally
    * take — because this is not an element appearing, it is a strip stepping, and

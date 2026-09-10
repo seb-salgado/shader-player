@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react"
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import {
   animate,
   motion,
@@ -13,6 +13,7 @@ import {
 } from "framer-motion"
 import { type Capture, stillUrl } from "@/lib/types"
 import { CaptureBadge } from "@/components/capture-badge"
+import { galleryEffects } from "@/lib/springs"
 import { cn } from "@/lib/utils"
 
 interface GalleryThumbnailStripProps {
@@ -138,6 +139,55 @@ const FIELD_SPRING = { type: "spring", duration: 0.22, bounce: 0 } as const
  * effect visibly switches on.
  */
 const falloff = (distance: number) => (distance >= 1 ? 0 : (1 + Math.cos(Math.PI * distance)) / 2)
+
+/**
+ * Where a fractional slot sits in the rail's own layout.
+ *
+ * Layout values only — no magnification, which is what makes it the right
+ * measure for a FLIP: both geometries have to be read the same way, and the
+ * field is not part of either.
+ *
+ * Extrapolates rather than clamps at the ends, off the end pair's own spacing,
+ * and off `pitch` when there is only one frame to go on. Deleting the newest
+ * capture leaves the ring standing on a slot that no longer exists; a clamp
+ * would put it on its destination before the spring had drawn a frame.
+ */
+function slotCenter(centers: number[], position: number, pitch: number): number {
+  const count = centers.length
+  if (count === 0) return 0
+  const first = centers[0] ?? 0
+  if (count === 1) return first + position * pitch
+  const lower = Math.min(Math.max(Math.floor(position), 0), count - 2)
+  const lowerCenter = centers[lower] ?? 0
+  return lowerCenter + ((centers[lower + 1] ?? 0) - lowerCenter) * (position - lower)
+}
+
+/**
+ * Which slot a delete took out, or null if this commit was not one.
+ *
+ * Read off the ids rather than handed down as a prop, for the reason `readFrames`
+ * gives about the registry it replaced: a second copy of the truth is a thing
+ * that can disagree with the first. Both galleries delete the capture on screen
+ * and only that, so the strip does not need telling — the list before and the
+ * list after say it exactly.
+ *
+ * Exactly one removal, in order. A commit that adds, reorders, or drops two is
+ * not a delete's motion and falls back to the jump.
+ */
+function removedSlot(before: string[], after: string[]): number | null {
+  if (after.length !== before.length - 1) return null
+  for (let index = 0; index < after.length; index += 1) {
+    if (after[index] !== before[index]) {
+      // Everything from here on has to be the tail of `before`, or this is a
+      // reorder wearing a delete's length.
+      for (let rest = index; rest < after.length; rest += 1) {
+        if (after[rest] !== before[rest + 1]) return null
+      }
+      return index
+    }
+  }
+  return after.length
+}
 
 /**
  * How far each end of the rail fades out, so a long stack dissolves at the edges
@@ -350,6 +400,77 @@ export function GalleryThumbnailStrip({
 
   useEffect(() => () => selectionAnimation.current?.stop(), [])
 
+  /**
+   * The rail closing over a deleted capture — a FLIP, and it has to be one.
+   *
+   * The rail is a plain flex column, so removing a capture re-lays the survivors
+   * out between one paint and the next and there is nothing to watch. Framer's
+   * `layout` cannot draw that crossing here for the same reason the ring had to
+   * leave the frame: these frames carry a hand-written scale, which `treeScale`
+   * cannot see, so a projection would travel by the wrong multiple. So the
+   * browser is allowed to close the gap instantly and this puts it back — every
+   * frame offset by exactly how far the delete moved it, sprung to zero.
+   *
+   * Measured deltas rather than "one pitch upward below the cut", which is what
+   * this was first and what the column's `justify-center` quietly falsified: a
+   * stack shorter than the rail is centred in it, so losing a capture also
+   * drifts *everything above* the cut half a pitch down. The two halves close
+   * over the gap symmetrically, and only a FLIP off the real geometry knows
+   * that. Once the stack is long enough to scroll, the centring term goes to
+   * zero on its own and this becomes the plain one-pitch rise again.
+   *
+   * `flip` is the progress, 1 at the seam and 0 when it has landed. It rides
+   * `applyField`'s existing pass, so the magnification and the collapse compose
+   * into the single transform each frame already gets.
+   */
+  const flip = useMotionValue(0)
+  const flipFramesRef = useRef<number[]>([])
+  const flipRingRef = useRef(0)
+  const flipAnimation = useRef<AnimationPlaybackControls | null>(null)
+  /** The slot a delete emptied, handed from the measuring pass to the aiming one. */
+  const removedRef = useRef<number | null>(null)
+
+  useEffect(() => () => flipAnimation.current?.stop(), [])
+
+  /** The stack as of the last commit, so a delete can be read off rather than passed in. */
+  const previousCapturesRef = useRef<Capture[]>([])
+
+  /**
+   * The thumbnail you just deleted, leaving.
+   *
+   * The rail's half of CaptureDismissal, and deliberately the same exit: the
+   * same `dismissMs` on the same `dismissFadeEase`, two commits, one property.
+   * It is one picture going, seen on two surfaces at once — giving the small
+   * copy a curve of its own would make it a second event.
+   *
+   * A fade and nothing else, for the reason the full-screen exit records: the
+   * recede was tried there and removed, and adding one here only to the
+   * thumbnail would put the two out of step again.
+   *
+   * Not a frame. It carries no `data-thumbnail-frame`, registers no motion value
+   * and takes no part in the field — it is a still, placed once at the slot the
+   * deleted capture had and left there while the rail closes over it. Anything
+   * that stayed in the list would have to be skipped by every index this
+   * component keeps, which is the registry bug `readFrames` exists to have
+   * already fixed.
+   */
+  const [departing, setDeparting] = useState<{ key: number; capture: Capture; y: number } | null>(null)
+  const [departed, setDeparted] = useState(false)
+  const departingKeyRef = useRef(0)
+
+  // Two commits, exactly as CaptureDismissal does it: the first paints the still
+  // over the slot the frame occupied a frame ago, the second starts the fade.
+  // Set together there is no "from" to transition out of and it simply blinks.
+  useEffect(() => {
+    if (!departing) return
+    const start = requestAnimationFrame(() => setDeparted(true))
+    const clear = window.setTimeout(() => setDeparting(null), galleryEffects.dismissMs + 60)
+    return () => {
+      cancelAnimationFrame(start)
+      window.clearTimeout(clear)
+    }
+  }, [departing])
+
   useMotionValueEvent(scrollOffset, "change", (value) => {
     const scroller = scrollRef.current
     if (!scroller) return
@@ -441,10 +562,14 @@ export function GalleryThumbnailStrip({
     const anchor =
       count > 1 ? spread[pair] + within * (spread[pair + 1] - spread[pair]) : 0
 
+    // How much of a delete's collapse is still to run. See `flip`.
+    const closing = flip.get()
+    const offsets = flipFramesRef.current
+
     for (let index = 0; index < count; index += 1) {
       const values = valueRefs.current[index]
       if (!values) continue
-      const translateY = spread[index] - anchor
+      const translateY = spread[index] - anchor + (offsets[index] ?? 0) * closing
       values.transform.set(
         `translate3d(0, ${translateY}px, 0) scale(${scales[index]})`,
       )
@@ -452,20 +577,36 @@ export function GalleryThumbnailStrip({
 
     // The ring, out of the same pass and the same numbers: whatever the field is
     // doing to the two frames it lies between, it is doing to the ring.
-    const ringPosition = Math.min(Math.max(selection.get(), 0), count - 1)
-    const lower = Math.min(Math.floor(ringPosition), Math.max(count - 2, 0))
+    //
+    // Allowed one slot past either end, where a plain clamp used to hold it.
+    // Deleting the newest capture leaves the ring standing on a slot that no
+    // longer exists, and clamping it to the last frame put it on its
+    // destination before the spring had drawn a frame of the trip. Past the end
+    // the position extrapolates off the end pair's own spacing, which is the
+    // pitch the field currently has there.
+    const ringPosition = Math.min(Math.max(selection.get(), -1), count)
+    const lower = Math.min(Math.max(Math.floor(ringPosition), 0), Math.max(count - 2, 0))
     const upper = Math.min(lower + 1, count - 1)
     const between = ringPosition - lower
     const lowerCenter = (centers[lower] ?? 0) + spread[lower] - anchor
-    const upperCenter = (centers[upper] ?? 0) + spread[upper] - anchor
-    const nextRingScale = scales[lower] + (scales[upper] - scales[lower]) * between
+    // A rail of one has no pair to read a slope off, so the slot below it is
+    // synthesised from the pitch. That is the two-captures-down-to-one case, and
+    // without it the ring arrives on the survivor with nothing drawn.
+    const upperCenter =
+      count > 1 ? (centers[upper] ?? 0) + spread[upper] - anchor : lowerCenter + pitch
+    // Size does not extrapolate with position: off the end there is no frame to
+    // be the size of, and running the line on would carry the ring past the
+    // field's own peak.
+    const blend = Math.min(Math.max(between, 0), 1)
+    const nextRingScale = scales[lower] + (scales[upper] - scales[lower]) * blend
     // The ring's box is the frame's own, pinned to the rail's top, so the
     // translate carries its centre to the frame's centre.
-    const nextRingY = lowerCenter + (upperCenter - lowerCenter) * between - height / 2
+    const nextRingY =
+      lowerCenter + (upperCenter - lowerCenter) * between - height / 2 + flipRingRef.current * closing
     ringTransform.set(
       `translate3d(0, ${nextRingY}px, 0) scale(${nextRingScale})`,
     )
-  }, [ringTransform, selection, strength])
+  }, [flip, ringTransform, selection, strength])
 
   // The strength spring is what carries the field in and out; every frame of it
   // needs the whole field recomputed, since the scales it multiplies also drive
@@ -475,6 +616,9 @@ export function GalleryThumbnailStrip({
   // And the ring's travel needs the same, for the same reason: the frames it is
   // interpolating between are wherever the field has just put them.
   useMotionValueEvent(selection, "change", applyField)
+
+  // The rail closing over a delete is the third input to the same pass.
+  useMotionValueEvent(flip, "change", applyField)
 
   const trackPointer = useCallback((clientY: number) => {
     const nav = scrollRef.current
@@ -569,12 +713,75 @@ export function GalleryThumbnailStrip({
   // frame of a freshly opened gallery drew the ring at the top of the rail.
   useLayoutEffect(() => {
     if (!isVertical || prefersReducedMotion) return
+
+    // Read before `measure` overwrites them: a FLIP needs the geometry the last
+    // paint was drawn against. `measure` builds a fresh array each time, so
+    // holding the old one is safe.
+    const previousCenters = geometryRef.current.centers
+    const previousOffsets = flipFramesRef.current
+    const previousCaptures = previousCapturesRef.current
+    previousCapturesRef.current = captures
+    const removed = removedSlot(
+      previousCaptures.map((capture) => capture.id),
+      captures.map((capture) => capture.id),
+    )
+    removedRef.current = removed
+
     // A delete leaves the value registry longer than the strip. Positions are
     // keyed by index, so trimming is all the compaction it needs.
     valueRefs.current.length = captures.length
     measure()
+
+    if (removed !== null) {
+      const { centers, pitch } = geometryRef.current
+      // Where each frame *was* — including any collapse it had not finished, so
+      // a second delete inside the spring picks the pictures up where they had
+      // actually got to instead of where their slots were.
+      const residual = flip.get()
+      const offsets: number[] = []
+      for (let index = 0; index < centers.length; index += 1) {
+        const before = index < removed ? index : index + 1
+        const drawn = previousCenters[before]
+        offsets[index] =
+          drawn === undefined ? 0 : drawn + (previousOffsets[before] ?? 0) * residual - (centers[index] ?? 0)
+      }
+      flipFramesRef.current = offsets
+
+      // The ring's own delta, off the same two geometries. It is not on a
+      // picture — it is on a *slot*, and the slot it is on is `selection`, which
+      // has not been renumbered yet. So: where that slot was, against where the
+      // renumbered slot is. `clamp(held − removed, 0, 1)` is the renumbering,
+      // and it is the identity in the ordinary case of deleting the capture the
+      // ring is resting on.
+      const held = selection.get()
+      const settled = held - Math.min(Math.max(held - removed, 0), 1)
+      flipRingRef.current =
+        slotCenter(previousCenters, held, pitch) +
+        flipRingRef.current * residual -
+        slotCenter(centers, settled, pitch)
+      selection.jump(settled)
+
+      flipAnimation.current?.stop()
+      flip.jump(1)
+      flipAnimation.current = animate(flip, 0, SELECTION_SPRING)
+
+      // The picture that left, held over the slot it had. Placed off the *old*
+      // geometry for the same reason the ring's delta is: that is where the last
+      // paint put it.
+      const leaving = previousCaptures[removed]
+      if (leaving) {
+        departingKeyRef.current += 1
+        setDeparted(false)
+        setDeparting({
+          key: departingKeyRef.current,
+          capture: leaving,
+          y: slotCenter(previousCenters, removed, pitch) - geometryRef.current.height / 2,
+        })
+      }
+    }
+
     applyField()
-  }, [applyField, captures.length, isVertical, measure, prefersReducedMotion])
+  }, [applyField, captures, flip, isVertical, measure, prefersReducedMotion, selection])
 
   // And again once the frames have re-registered their motion values, which they
   // do in an effect and therefore after the layout pass above. A delete renumbers
@@ -672,16 +879,33 @@ export function GalleryThumbnailStrip({
     const pointerSelected = pointerSelectRef.current
     pointerSelectRef.current = null
 
+    // Consumed rather than merely read: this effect also runs on a plain step
+    // through the rail, where the measuring pass above has not run at all and a
+    // leftover slot would send the ring off on a delete it had already drawn.
+    const removed = removedRef.current
+    removedRef.current = null
+
     // The ring is aimed above the pointer check, and unconditionally: a press is
     // the one selection the rail must *not* scroll to reveal, and it is still a
     // selection the ring has to travel to. Only the scroll below is declined.
     if (isVertical && !prefersReducedMotion) {
       const target = currentIndex
-      // A capture arriving or leaving renumbers every index under the
-      // ring, so there is no travel to draw — the frame it is on has simply been
-      // relabelled. Springing across that renumbering would send it on a lap of
-      // the rail on every delete.
-      if (selectionCountRef.current !== captures.length) {
+      // A delete, and it is the one count change that *is* a travel.
+      //
+      // This used to be folded in with every other renumbering below and jumped,
+      // on the reading that a shorter list only relabels the frame the ring is
+      // standing on. That is true of the pictures and false of the ring: the ring
+      // is on a slot, the pass above has already left it standing exactly where
+      // it was drawn, and the capture it belongs to is now the one a slot up.
+      // There is a full pitch of travel there and the jump was eating it.
+      if (removed !== null) {
+        selectionCountRef.current = captures.length
+        selectionAnimation.current = animate(selection, target, SELECTION_SPRING)
+      } else if (selectionCountRef.current !== captures.length) {
+        // Anything else that changes the count — the first aim above all —
+        // renumbers every index under the ring with no travel behind it. The
+        // frame it is on has simply been relabelled, and springing across that
+        // would send it on a lap of the rail.
         selectionCountRef.current = captures.length
         selectionAnimation.current?.stop()
         selectionAnimation.current = null
@@ -863,6 +1087,42 @@ export function GalleryThumbnailStrip({
           />
         </motion.div>
       )}
+
+      {/* The deleted thumbnail, still leaving. See `departing`.
+
+          The box is the frame's own, copied class for class — `h-14 w-20` with
+          the same transparent 2px border and `p-1` inside it — rather than the
+          6px inset those two add up to. Written as one inset the picture came
+          out 60×80 instead of 44×68: an absolutely positioned <img> keeps its
+          intrinsic size and simply ignores insets it cannot satisfy. Same
+          structure, same result, and nothing to keep in step by hand.
+
+          No z-index: it sits under the ring and under the frames closing over
+          it, which is where a picture on its way out belongs. */}
+      {ridesOwnRing && departing && (
+        <div
+          key={departing.key}
+          aria-hidden
+          data-gallery-thumbnail-departing
+          className="pointer-events-none absolute right-4 top-0 h-14 w-20 origin-right border-2 border-transparent p-1"
+          style={{
+            transform: `translate3d(0, ${departing.y}px, 0)`,
+            opacity: departed ? 0 : 1,
+            transition: `opacity ${galleryEffects.dismissMs}ms ${galleryEffects.dismissFadeEase}`,
+          }}
+        >
+          {/* relative for the badge, exactly as the frame's own wrapper is. */}
+          <div className="relative size-full">
+            <img
+              src={stillUrl(departing.capture) || "/placeholder.svg"}
+              alt=""
+              className="block size-full rounded-[4px] object-cover"
+              draggable={false}
+            />
+            <CaptureBadge capture={departing.capture} />
+          </div>
+        </div>
+      )}
     </nav>
   )
 }
@@ -908,7 +1168,15 @@ function GalleryThumbnailFrame({
 }: GalleryThumbnailFrameProps) {
   const transform = useMotionValue(IDENTITY_TRANSFORM)
 
-  useEffect(() => {
+  // useLayoutEffect, and the phase is what makes a delete's first painted frame
+  // right. Children's layout effects run before the strip's, so the registry is
+  // already renumbered by the time the strip measures and lays the field out —
+  // which is the pass that has to write the collapse offset onto the frames that
+  // actually moved. Left in a passive effect, that first pass wrote the new
+  // geometry into the old numbering and the strip needed a second, post-paint
+  // pass to land it; the gap then closed a frame late, at the head of the spring
+  // where the offset shows most.
+  useLayoutEffect(() => {
     if (!isVertical) return
     const values = { transform }
     registerValues(index, values)
