@@ -45,7 +45,9 @@ const DESKTOP_FALLBACK_HEIGHT = 56
 // flex. Pitch is measured off the live nodes, so this only stands in before
 // that measurement lands and for a rail of one — but it has to track the class,
 // or the field's reach is wrong on first paint.
-const DESKTOP_FALLBACK_GAP = 0
+const FRAME_FALLBACK_GAP = 0
+/** The strip's own fallback, mirroring MOBILE_FRAME_CLASS's width for the same reason. */
+const MOBILE_FALLBACK_WIDTH = 41
 
 /**
  * The mobile frame: 41×52, which is a 33×44 picture at 3:4.
@@ -114,8 +116,6 @@ const MOBILE_FRAME_CLASS = "h-[52px] w-[41px]"
  * holding, not an exception to it.
  */
 const SELECTION_SPRING = { type: "spring", duration: 0.28, bounce: 0 } as const
-/** The mobile strip's press. Unchanged from what it was. */
-const PRESS_SPRING = { type: "spring", duration: 0.22, bounce: 0 } as const
 /**
  * Carries the field in and out on enter/leave.
  *
@@ -315,8 +315,11 @@ export function GalleryThumbnailStrip({
   // centre-to-centre pitch, all measured rather than assumed.
   const geometryRef = useRef({
     centers: [] as number[],
-    height: DESKTOP_FALLBACK_HEIGHT,
-    pitch: DESKTOP_FALLBACK_HEIGHT + DESKTOP_FALLBACK_GAP,
+    /** The frame's extent along the strip's own axis: its height on the rail, its width on the strip. */
+    size: DESKTOP_FALLBACK_HEIGHT,
+    pitch: DESKTOP_FALLBACK_HEIGHT + FRAME_FALLBACK_GAP,
+    /** Its offset on the other axis, which is what places the strip's ring. */
+    cross: 0,
   })
   const pointerRef = useRef(0)
   const clientYRef = useRef<number | null>(null)
@@ -454,7 +457,12 @@ export function GalleryThumbnailStrip({
    * component keeps, which is the registry bug `readFrames` exists to have
    * already fixed.
    */
-  const [departing, setDeparting] = useState<{ key: number; capture: Capture; y: number } | null>(null)
+  const [departing, setDeparting] = useState<{
+    key: number
+    capture: Capture
+    along: number
+    cross: number
+  } | null>(null)
   const [departed, setDeparted] = useState(false)
   const departingKeyRef = useRef(0)
 
@@ -496,25 +504,32 @@ export function GalleryThumbnailStrip({
   }, [])
 
   const measure = useCallback(() => {
-    if (!isVertical) return
     const centers: number[] = []
-    let height = DESKTOP_FALLBACK_HEIGHT
+    let size = isVertical ? DESKTOP_FALLBACK_HEIGHT : MOBILE_FALLBACK_WIDTH
+    // Where the frames sit on the *other* axis, which only the strip needs: its
+    // ring is placed from the top of a scroller the frames are centred in, where
+    // the rail's is pinned to an edge by `right-4`.
+    let cross = 0
 
     const frames = readFrames()
     for (let index = 0; index < frames.length; index += 1) {
       const node = frames[index]
-      // offsetTop, not getBoundingClientRect: these are layout values, immune to
-      // the transforms this component is in the middle of applying.
-      centers[index] = node.offsetTop + node.offsetHeight / 2
-      height = node.offsetHeight
+      // offsetTop/offsetLeft, not getBoundingClientRect: these are layout
+      // values, immune to the transforms this component is in the middle of
+      // applying.
+      centers[index] = isVertical
+        ? node.offsetTop + node.offsetHeight / 2
+        : node.offsetLeft + node.offsetWidth / 2
+      size = isVertical ? node.offsetHeight : node.offsetWidth
+      cross = isVertical ? node.offsetLeft : node.offsetTop
     }
 
     const pitch =
       centers.length > 1 && centers[0] !== undefined && centers[1] !== undefined
         ? centers[1] - centers[0]
-        : height + DESKTOP_FALLBACK_GAP
+        : size + FRAME_FALLBACK_GAP
 
-    geometryRef.current = { centers, height, pitch }
+    geometryRef.current = { centers, size, pitch, cross }
   }, [isVertical, readFrames])
 
   /**
@@ -529,7 +544,7 @@ export function GalleryThumbnailStrip({
    * strip open away from it in both directions.
    */
   const applyField = useCallback(() => {
-    const { centers, height, pitch } = geometryRef.current
+    const { centers, size, pitch, cross } = geometryRef.current
     const count = centers.length
     if (count === 0) return
 
@@ -552,7 +567,7 @@ export function GalleryThumbnailStrip({
     spread[0] = 0
     for (let index = 0; index < count - 1; index += 1) {
       spread[index + 1] =
-        spread[index] + (height * (scales[index] + scales[index + 1] - 2)) / 2
+        spread[index] + (size * (scales[index] + scales[index + 1] - 2)) / 2
     }
 
     const first = centers[0] ?? 0
@@ -569,9 +584,11 @@ export function GalleryThumbnailStrip({
     for (let index = 0; index < count; index += 1) {
       const values = valueRefs.current[index]
       if (!values) continue
-      const translateY = spread[index] - anchor + (offsets[index] ?? 0) * closing
+      const along = spread[index] - anchor + (offsets[index] ?? 0) * closing
       values.transform.set(
-        `translate3d(0, ${translateY}px, 0) scale(${scales[index]})`,
+        isVertical
+          ? `translate3d(0, ${along}px, 0) scale(${scales[index]})`
+          : `translate3d(${along}px, 0, 0)`,
       )
     }
 
@@ -601,12 +618,18 @@ export function GalleryThumbnailStrip({
     const nextRingScale = scales[lower] + (scales[upper] - scales[lower]) * blend
     // The ring's box is the frame's own, pinned to the rail's top, so the
     // translate carries its centre to the frame's centre.
-    const nextRingY =
-      lowerCenter + (upperCenter - lowerCenter) * between - height / 2 + flipRingRef.current * closing
+    const ringAlong =
+      lowerCenter + (upperCenter - lowerCenter) * between - size / 2 + flipRingRef.current * closing
+    // The rail's ring is pinned to an edge by `right-4`, so only the travel axis
+    // is written. The strip's is placed from `left-0 top-0` and carries the
+    // measured cross offset with it, which saves writing a second style that
+    // would have to be kept in step with this one.
     ringTransform.set(
-      `translate3d(0, ${nextRingY}px, 0) scale(${nextRingScale})`,
+      isVertical
+        ? `translate3d(0, ${ringAlong}px, 0) scale(${nextRingScale})`
+        : `translate3d(${ringAlong}px, ${cross}px, 0)`,
     )
-  }, [flip, ringTransform, selection, strength])
+  }, [flip, isVertical, ringTransform, selection, strength])
 
   // The strength spring is what carries the field in and out; every frame of it
   // needs the whole field recomputed, since the scales it multiplies also drive
@@ -712,7 +735,7 @@ export function GalleryThumbnailStrip({
   // nowhere sensible to sit before it. Left in an effect, the first painted
   // frame of a freshly opened gallery drew the ring at the top of the rail.
   useLayoutEffect(() => {
-    if (!isVertical || prefersReducedMotion) return
+    if (prefersReducedMotion) return
 
     // Read before `measure` overwrites them: a FLIP needs the geometry the last
     // paint was drawn against. `measure` builds a fresh array each time, so
@@ -775,13 +798,14 @@ export function GalleryThumbnailStrip({
         setDeparting({
           key: departingKeyRef.current,
           capture: leaving,
-          y: slotCenter(previousCenters, removed, pitch) - geometryRef.current.height / 2,
+          along: slotCenter(previousCenters, removed, pitch) - geometryRef.current.size / 2,
+          cross: geometryRef.current.cross,
         })
       }
     }
 
     applyField()
-  }, [applyField, captures, flip, isVertical, measure, prefersReducedMotion, selection])
+  }, [applyField, captures, flip, measure, prefersReducedMotion, selection])
 
   // And again once the frames have re-registered their motion values, which they
   // do in an effect and therefore after the layout pass above. A delete renumbers
@@ -789,25 +813,29 @@ export function GalleryThumbnailStrip({
   // the old numbering; this is the one that lands it on the right frames. It is
   // the same idempotent pass, so on every other commit it changes nothing.
   useEffect(() => {
-    if (!isVertical || prefersReducedMotion) return
+    if (prefersReducedMotion) return
     applyField()
-  }, [applyField, captures.length, isVertical, prefersReducedMotion])
+  }, [applyField, captures.length, prefersReducedMotion])
 
   useEffect(() => {
     const nav = scrollRef.current
-    if (!nav || !isVertical || prefersReducedMotion) return
+    if (!nav || prefersReducedMotion) return
 
     // Selecting a frame scrolls the rail, which moves the frames past a
     // stationary cursor. That is a real change in proximity, so the field should
     // follow it rather than be suppressed — recompute from the last cursor
-    // position on every scroll frame.
+    // position on every scroll frame. Rail only: the strip has no field, and no
+    // cursor to have moved relative to.
     const handleScroll = () => {
       if (!activeRef.current || clientYRef.current === null) return
       trackPointer(clientYRef.current)
       applyField()
     }
-    nav.addEventListener("scroll", handleScroll, { passive: true })
+    if (isVertical) nav.addEventListener("scroll", handleScroll, { passive: true })
 
+    // The re-measure *is* for both. The strip's ring is placed from these
+    // numbers now, so a rotation or a keyboard opening under it has to move the
+    // ring with the frames.
     if (typeof ResizeObserver === "undefined") {
       return () => nav.removeEventListener("scroll", handleScroll)
     }
@@ -888,7 +916,7 @@ export function GalleryThumbnailStrip({
     // The ring is aimed above the pointer check, and unconditionally: a press is
     // the one selection the rail must *not* scroll to reveal, and it is still a
     // selection the ring has to travel to. Only the scroll below is declined.
-    if (isVertical && !prefersReducedMotion) {
+    if (!prefersReducedMotion) {
       const target = currentIndex
       // A delete, and it is the one count change that *is* a travel.
       //
@@ -959,7 +987,9 @@ export function GalleryThumbnailStrip({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, captures.length, orientation, prefersReducedMotion, scrollAxis, stopScroll])
 
-  const ridesOwnRing = isVertical && !prefersReducedMotion
+  // Both orientations place their own ring now. It is a shared element only
+  // under reduced motion, where nothing is writing a transform for it to fight.
+  const ridesOwnRing = !prefersReducedMotion
 
   return (
     <nav
@@ -968,11 +998,13 @@ export function GalleryThumbnailStrip({
       data-gallery-thumbnail-strip={orientation}
       className={cn(
         "pointer-events-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        // `relative` on both, and it is load-bearing on both: it makes the
+        // scroller the offsetParent for every frame, so the measured centres,
+        // the mapped cursor and the ring placed off them share one coordinate
+        // space whatever the gallery wraps this in.
+        "relative",
         isVertical
-          // `relative` makes the rail the offsetParent for every frame, so the
-          // measured centres and the mapped cursor share one coordinate space
-          // whatever the gallery wraps this in.
-          ? "relative h-full w-32 overflow-x-hidden overflow-y-auto"
+          ? "h-full w-32 overflow-x-hidden overflow-y-auto"
           // Equal padding top and bottom, and the bottom one is the half that
           // does the work: this bar is pinned to `bottom-0`, so its height grows
           // upward and only `pb` can move the frames. `pt` matches it so the
@@ -1051,25 +1083,37 @@ export function GalleryThumbnailStrip({
         })}
       </div>
 
-      {/* The rail's selection ring — a sibling of the frames rather than a child
-          of the selected one. See `selection` above for why it had to leave.
+      {/* The selection ring — a sibling of the frames rather than a child of the
+          selected one. See `selection` above for why it had to leave the rail,
+          and the strip's frames now write a transform of their own for exactly
+          the same reason it cannot go back.
 
           Every number here mirrors the frame's own box and has to keep
-          mirroring it: `h-14 w-20` is the button's border box, `right-4`
-          answers the column's `pr-4` so the two right edges coincide, and
-          `origin-right` is the frames' own origin — which is what keeps that
-          edge fixed as the ring is magnified along with them. The stroke and
-          the radius scale with it exactly as they did when the frame carried
-          them, because it is still one transform doing the scaling.
+          mirroring it: the size is the button's border box on each surface,
+          `right-4` answers the rail column's `pr-4` so the two right edges
+          coincide, and `origin-right` is the rail frames' own origin — which is
+          what keeps that edge fixed as the ring is magnified along with them.
+          The stroke and the radius scale with it exactly as they did when the
+          frame carried them, because it is still one transform doing the
+          scaling.
 
-          Absolutely positioned inside the scroller, so it rides the rail's
-          scroll the way the frames do and shares the coordinate space the
-          measured centres are in. */}
+          The strip anchors at `left-0 top-0` instead and takes its cross-axis
+          position from the measured geometry: its frames are centred in the
+          scroller rather than pinned to an edge, so there is no inset to answer.
+
+          Absolutely positioned inside the scroller, so it rides the scroll the
+          way the frames do and shares the coordinate space the measured centres
+          are in. */}
       {ridesOwnRing && captures.length > 0 && (
         <motion.div
           aria-hidden
           data-gallery-thumbnail-selection
-          className="pointer-events-none absolute right-4 top-0 z-10 h-14 w-20 origin-right"
+          className={cn(
+            "pointer-events-none absolute z-10",
+            isVertical
+              ? "right-4 top-0 h-14 w-20 origin-right"
+              : `left-0 top-0 ${MOBILE_FRAME_CLASS}`,
+          )}
           style={{ transform: ringTransform, willChange: "transform" }}
         >
           <div
@@ -1083,19 +1127,20 @@ export function GalleryThumbnailStrip({
             // own, and every arc stays concentric; equal radii at different
             // depths would pinch the gap shut at the corners, which is the thing
             // that reads as wrong.
-            style={{ borderRadius: 8 }}
+            style={{ borderRadius: isVertical ? 8 : 5 }}
           />
         </motion.div>
       )}
 
       {/* The deleted thumbnail, still leaving. See `departing`.
 
-          The box is the frame's own, copied class for class — `h-14 w-20` with
-          the same transparent 2px border and `p-1` inside it — rather than the
-          6px inset those two add up to. Written as one inset the picture came
-          out 60×80 instead of 44×68: an absolutely positioned <img> keeps its
-          intrinsic size and simply ignores insets it cannot satisfy. Same
-          structure, same result, and nothing to keep in step by hand.
+          The box is the frame's own, copied class for class on each surface —
+          the same size, the same transparent 2px border, the same padding
+          inside it — rather than the single inset those two add up to. Written
+          as one inset the picture came out 60×80 instead of 44×68: an
+          absolutely positioned <img> keeps its intrinsic size and simply
+          ignores insets it cannot satisfy. Same structure, same result, and
+          nothing to keep in step by hand.
 
           No z-index: it sits under the ring and under the frames closing over
           it, which is where a picture on its way out belongs. */}
@@ -1104,9 +1149,16 @@ export function GalleryThumbnailStrip({
           key={departing.key}
           aria-hidden
           data-gallery-thumbnail-departing
-          className="pointer-events-none absolute right-4 top-0 h-14 w-20 origin-right border-2 border-transparent p-1"
+          className={cn(
+            "pointer-events-none absolute border-2 border-transparent",
+            isVertical
+              ? "right-4 top-0 h-14 w-20 origin-right p-1"
+              : `left-0 top-0 ${MOBILE_FRAME_CLASS} p-0.5`,
+          )}
           style={{
-            transform: `translate3d(0, ${departing.y}px, 0)`,
+            transform: isVertical
+              ? `translate3d(0, ${departing.along}px, 0)`
+              : `translate3d(${departing.along}px, ${departing.cross}px, 0)`,
             opacity: departed ? 0 : 1,
             transition: `opacity ${galleryEffects.dismissMs}ms ${galleryEffects.dismissFadeEase}`,
           }}
@@ -1116,7 +1168,7 @@ export function GalleryThumbnailStrip({
             <img
               src={stillUrl(departing.capture) || "/placeholder.svg"}
               alt=""
-              className="block size-full rounded-[4px] object-cover"
+              className={cn("block size-full object-cover", isVertical ? "rounded-[4px]" : "rounded-[2px]")}
               draggable={false}
             />
             <CaptureBadge capture={departing.capture} />
@@ -1177,18 +1229,19 @@ function GalleryThumbnailFrame({
   // pass to land it; the gap then closed a frame late, at the head of the spring
   // where the offset shows most.
   useLayoutEffect(() => {
-    if (!isVertical) return
     const values = { transform }
     registerValues(index, values)
     return () => registerValues(index, null)
-  }, [index, isVertical, registerValues, transform])
+  }, [index, registerValues, transform])
 
+  // Nothing writes this once the field and the delete are switched off, so a
+  // frame that had been transformed would keep its last offset for good.
   useEffect(() => {
-    if (isVertical) return
+    if (!prefersReducedMotion) return
     transform.set(IDENTITY_TRANSFORM)
-  }, [isVertical, transform])
+  }, [prefersReducedMotion, transform])
 
-  const railDrawsRing = isVertical && !prefersReducedMotion
+  const stripDrawsRing = !prefersReducedMotion
 
   return (
     <motion.button
@@ -1216,24 +1269,27 @@ function GalleryThumbnailFrame({
           ? "h-14 w-20 origin-right rounded-[10px] p-1"
           : `${MOBILE_FRAME_CLASS} rounded-[5px] p-0.5`,
       )}
-      style={isVertical ? { transform, willChange: "transform" } : undefined}
-      // The press affordance stays on the horizontal strip's `scale` only
-      // because nothing else is writing to it there. On the rail it lives on the
-      // inner wrapper below instead: `whileTap` and the magnification both own
-      // `scale`, and whichever landed last used to win.
-      transition={prefersReducedMotion ? { duration: 0 } : PRESS_SPRING}
-      whileTap={prefersReducedMotion || isVertical ? undefined : { scale: 0.97 }}
+      // will-change on the rail only. Its frames are under a field that moves
+      // every one of them on every pointer frame, which is what the hint is for;
+      // the strip's move once, on a delete, and `translate3d` is hint enough for
+      // that. A phone holding a long stack should not carry a composited layer
+      // per thumbnail for a 280ms event.
+      style={{ transform, willChange: isVertical ? "transform" : undefined }}
+      // The press affordance lives on the inner wrapper below, on both surfaces.
+      // It used to sit here as a `whileTap` on the strip, which was safe only
+      // while nothing else wrote this element's transform — and now the strip's
+      // own delete does, exactly as the rail's magnification always did. Two
+      // writers on one transform means whichever landed last wins.
       onPointerDown={isVertical ? onPressFrame : undefined}
       onFocus={isVertical ? (event) => onFocusFrame(index, event.currentTarget) : undefined}
       onBlur={isVertical ? onBlurFrame : undefined}
       onClick={onSelect}
     >
-      {/* The rail draws its own ring, above; this is the strip's, and the
-          reduced-motion rail's. Both are cases where the ring's parent carries
-          no scale of its own — the strip never magnifies, and the rail's field
-          is switched off entirely under reduced motion — so the shared element
+      {/* Both surfaces draw their own ring above; this is what is left for
+          reduced motion, which is the one case where nothing writes this
+          element's transform at all — no field, no delete — so a shared element
           has nothing to trip over and can stay. */}
-      {selected && !railDrawsRing && (
+      {selected && !stripDrawsRing && (
         <motion.div
           layoutId={`gallery-thumbnail-selection-${orientation}`}
           data-gallery-thumbnail-selection
@@ -1254,8 +1310,7 @@ function GalleryThumbnailFrame({
         className={cn(
           // relative so the badge below has this picture's box to sit in.
           "relative size-full",
-          isVertical &&
-            "transition-transform duration-100 ease-out motion-safe:group-active:scale-[0.97]",
+          "transition-transform duration-100 ease-out motion-safe:group-active:scale-[0.97]",
         )}
       >
         <img
